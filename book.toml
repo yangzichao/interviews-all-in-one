@@ -1,0 +1,12 @@
+[book]
+authors = ["yangzichao"]
+language = "en"
+multilingual = false
+src = "src"
+title = "interviews-all-in-one"
+
+[output.html.search]
+limit-results = 20
+
+[output.html.fold]
+enable = true
