@@ -19,3 +19,5 @@ python mdbook-auto-summary.py ~/Desktop/interviews-all-in-one/src -o
 在 src/leetcode 下执行该python脚本会把所有的 leetcode-123 文档补成 leetcode-0123 等等。
 
 ## 简单 mdbook
+
+gitbook 已经变成狗逼了，是时候投奔mdbook了
