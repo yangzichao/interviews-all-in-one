@@ -20,4 +20,14 @@ python mdbook-auto-summary.py ~/Desktop/interviews-all-in-one/src -o
 
 ## 简单 mdbook
 
-gitbook 已经变成狗逼了，是时候投奔mdbook了
+gitbook 已经良心大大的坏了，旧的gitbook也和新版的node 大大的不兼容，是时候投奔mdbook了。
+
+mdbook 非常的舒服，比gitbook 这个垃圾好多了。
+只需要 1. 安装rust 和 cargo 2. 安装 mdbook 3.发布
+参见[官方文档](https://rust-lang.github.io/mdBook/guide/installation.html)
+
+现在唯一的问题是，没有我喜欢的自动生成SUMMARY的包，所以就用上面的python脚本对付一下。
+
+#### mdbook CI/CD with Github Actions
+其实github自己就会跳出来让你选，非常的机智，不用你管。
+参见[这个](https://github.com/rust-lang/mdBook/wiki/Automated-Deployment%3A-GitHub-Actions)
