@@ -1,13 +1,13 @@
 # Introduction
 
-这是一个中文的repo, 主要自己看，都是瞎写的。
+这是一个主要是中文的repo, 目的就是自己看，东西都是瞎写的。
 
-## ramdom
+## cheatsheet 之类的
 
 * pages 发布于 https://yangzichao.github.io/interviews-all-in-one/
-* main branch 用来发布 gitbook, 别又写成master了
+* main branch 用来发布 mdbook, 别又写成master了
 * md-auto-summary.py 
-使用了如上的python脚本自动生成 SUMMARY.md 常用的就如下语句：
+使用了如上的python脚本自动生成 mdbook 所需的 SUMMARY.md 常用的就如下语句：
 `
 python mdbook-auto-summary.py {absolute path} -o
 `     
