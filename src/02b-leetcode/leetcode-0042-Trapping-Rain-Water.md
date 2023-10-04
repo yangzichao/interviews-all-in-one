@@ -245,3 +245,34 @@ class Solution {
     }
 }
 ```
+
+
+
+## 2023 
+
+这个题很多年没写过了，还是能写对，说明当年想的还是挺明白的。
+这个题，还记得当年感觉是非常难的；现在觉得，其实思想算是非常简单的了。
+
+```java
+class Solution {
+    public int trap(int[] height) {
+        int total = 0;
+        int lo = 0;
+        int hi = height.length - 1;
+        int loMax = 0;
+        int hiMax = 0;
+        while (lo < hi) {
+            loMax = Math.max(loMax, height[lo]);
+            hiMax = Math.max(hiMax, height[hi]);
+            if (height[lo] < height[hi]) {
+                total += Math.min(loMax, hiMax) - height[lo];
+                lo++;
+            } else {
+                total += Math.min(loMax, hiMax) - height[hi];
+                hi--;
+            }
+        }
+        return total;
+    }
+}
+```
