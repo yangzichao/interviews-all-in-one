@@ -6,8 +6,10 @@
 
 * https://yangzichao.github.io/interviews-all-in-one/
 * main branch 用来发布 mdbook, 别又push到master了
-* md-auto-summary.py 
-使用了如上的python脚本自动生成 mdbook 所需的 SUMMARY.md 常用的就如下语句：       
+* mdbook-auto-summary.py  
+使用了如上的python脚本自动生成 mdbook 所需的 SUMMARY.md 
+
+常用的就如下语句：       
 
 > python mdbook-auto-summary.py {absolute path} -o      
 
@@ -24,7 +26,11 @@
 gitbook 已经良心大大的坏了，旧的gitbook也和新版的node 大大的不兼容，是时候投奔mdbook了。
 
 mdbook 非常的舒服，比gitbook 这个垃圾好多了。
-只需要 1. 安装rust 和 cargo 2. 安装 mdbook 3.发布
+只需要 
+1. 安装rust 和 cargo 
+2. 安装 mdbook 
+3. 发布
+
 参见[官方文档](https://rust-lang.github.io/mdBook/guide/installation.html)
 
 现在唯一的问题是，没有我喜欢的自动生成SUMMARY的包，所以就用上面的python脚本对付一下。

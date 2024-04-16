@@ -3,6 +3,8 @@ base62 是很基础的算法，在 tinyURL 和 一次谷歌面经当中都被问
 base62 可以轻易改成 baseK 算法。
 下面附上 decode 和 encode 的算法。
 
+具体可以参见leetcode-0168题 和 0171题。
+
 ```java
 import java.util.HashMap;
 import java.util.Map;

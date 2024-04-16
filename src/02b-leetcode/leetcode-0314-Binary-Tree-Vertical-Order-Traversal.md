@@ -131,3 +131,59 @@ class Solution {
 }
 ​
 ```
+
+## 使用 Pair 
+
+我们要熟练使用java的新语言特性。
+```java
+
+/**
+ * Definition for a binary tree node.
+ * public class TreeNode {
+ * int val;
+ * TreeNode left;
+ * TreeNode right;
+ * TreeNode() {}
+ * TreeNode(int val) { this.val = val; }
+ * TreeNode(int val, TreeNode left, TreeNode right) {
+ * this.val = val;
+ * this.left = left;
+ * this.right = right;
+ * }
+ * }
+ */
+class Solution {
+    public List<List<Integer>> verticalOrder(TreeNode root) {
+        List<List<Integer>> ans = new ArrayList<>();
+        if (root == null) return ans;
+        Map<Integer, List<Integer>> map = new HashMap<>();
+        Queue<Pair<Integer, TreeNode>> queue = new ArrayDeque<>();
+        queue.offer(new Pair<>(0, root));
+        int mostL = 0;
+        int mostR = 0;
+        while (!queue.isEmpty()) {
+            Pair<Integer, TreeNode> cur = queue.poll();
+            int curIndex = cur.getKey();
+            TreeNode node = cur.getValue();
+            mostL = Math.min(mostL, curIndex);
+            mostR = Math.max(mostR, curIndex);
+            map.putIfAbsent(curIndex, new ArrayList<>());
+            map.get(curIndex).add(node.val);
+            if (node.left != null) {
+                queue.offer(new Pair(curIndex - 1, node.left) );
+            }
+
+            if (node.right != null) {
+                queue.offer(new Pair(curIndex + 1, node.right) );
+            }
+        }
+        for (int i = mostL; i <= mostR; i++) {
+            if (!map.containsKey(i)) continue;
+            ans.add(map.get(i));
+        }
+
+        return ans;
+    }
+}
+
+```

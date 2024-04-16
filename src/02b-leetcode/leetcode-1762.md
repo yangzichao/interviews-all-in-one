@@ -24,3 +24,27 @@ class Solution {
     }
 }
 ```
+
+实在简单 不值一提
+
+```java
+class Solution {
+    public int[] findBuildings(int[] heights) {
+        ArrayList<Integer> oceanViews = new ArrayList<>();
+        int curMax = -1;
+        for (int i = heights.length - 1; i >= 0; i--) {
+            if (heights[i] > curMax) {
+                oceanViews.add(i);
+            }
+            curMax = Math.max(curMax, heights[i]);
+        }
+        int N = oceanViews.size();
+        int[] ans = new int[N];
+        for (int i = 0; i < N; i++) {
+            ans[i] = oceanViews.get(N - 1 - i);
+        }
+        return ans;
+    }
+}
+
+```
