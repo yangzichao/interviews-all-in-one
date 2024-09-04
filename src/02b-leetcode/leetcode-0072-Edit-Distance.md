@@ -38,6 +38,10 @@ exection -&gt; execution (insert 'u')
 </pre>
 </div></section>
  
+2024补充： 现在这个题被改为 medium 难度了。 因为这个世非常经典的应用。
+图中定义的距离是 levenshtein distance. 在模糊搜索中有非常广泛的应用。
+fuzzy search. 
+
  ## Method One 
  
 ``` Java
