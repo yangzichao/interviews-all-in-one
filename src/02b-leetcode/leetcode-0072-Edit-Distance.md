@@ -40,7 +40,11 @@ exection -&gt; execution (insert 'u')
  
 2024补充： 现在这个题被改为 medium 难度了。 因为这个世非常经典的应用。
 图中定义的距离是 levenshtein distance. 在模糊搜索中有非常广泛的应用。
-fuzzy search. 
+fuzzy search. Apache Lucene 是 Levenshtein Distance 在 fuzzy search 中典型的应用。
+
+维基百科的补充：If the dictionary is stored in compressed form as a trie, the time for this algorithm (after the automaton has been constructed) is proportional to the number of nodes in the trie, significantly faster than using dynamic programming to compute the Levenshtein distance separately for each dictionary word.
+https://en.wikipedia.org/wiki/Levenshtein_automaton
+
 
  ## Method One 
  

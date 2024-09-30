@@ -1,3 +1,5 @@
+# Prefix Sum SOP
+
 使用 prefix array 是一个非常常见的技巧
 
 我们先来分析一下这个技巧, 以053的Kadane's algo为例。 

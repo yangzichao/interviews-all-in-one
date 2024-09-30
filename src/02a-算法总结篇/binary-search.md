@@ -196,3 +196,6 @@ class Solution {
 # Todo:
 
 有空学习一下这整个章节，尤其是第二个模板；   https://leetcode.com/explore/learn/card/binary-search/
+
+有时间看看这个题能不能二分法
+https://www.fastprep.io/problems/amazon-get-minimum-boxes
