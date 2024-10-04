@@ -52,7 +52,9 @@ Cons:
     - 用例：Fraud Detection，Recommendation engine
     - Amazon Neptune, NEO4J
 
-NoSQL: 读快，做cache (in memory key/value), data is not structured(document stores), 
+NoSQL: 读快，做cache (in memory key/value), data is not structured(document stores).
+注意 in memory kv db, 由于不在 disk 上，因此很昂贵。而且，撑死 1TB RAM 就已经很变态了，如果数据是几十TB 那么就不可能选择 In momory DB.
+
 
 
 

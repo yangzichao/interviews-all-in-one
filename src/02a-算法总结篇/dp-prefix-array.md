@@ -23,7 +23,7 @@ int[] prefix = new int[nums.length + 1];
 prefix[i] = prefix[i - 1] + nums[i];
 ```
 此时，prefix[i + 1] 储存的是 包含了 nums[i] 之前的所有和. 
-但是如果想要计算 nums 在 i j 之间的和 需要取prefix的 i, j + 1.
+但是如果想要计算 nums 在 i, j 之间的和 需要取prefix的 i, j + 1.
 其计算过程是 (i - 1 + 1), (j + 1) 即所有的index shift一位。
 这样我们不必处理特殊的 i - 1 的 edge case. 
 

@@ -156,3 +156,59 @@ class Solution {
     }
 }
 ```
+
+
+
+
+似乎这个 code 才是更好的, while 加了一层判断 比较丝滑。
+
+```java
+
+class Solution {
+    private int[][] DIRECTIONS = new int[][]{{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+    private final int BAD = 2;
+    private final int GOOD = 1;
+    private final int EMPTY = 0;
+
+    public int orangesRotting(int[][] grid) {
+        int totalGood = 0;
+        int M = grid.length;
+        int N = grid[0].length;
+        
+        Queue<int[]> bfs = new ArrayDeque<>();
+        for (int i = 0; i < M; i++) {
+            for (int j = 0; j < N; j++) {
+                if (grid[i][j] == EMPTY) continue;
+                if (grid[i][j] == GOOD) totalGood++;
+                if (grid[i][j] == BAD) {
+                    bfs.offer(new int[]{i, j});
+                }
+            }
+        }
+
+        int steps = 0;
+ 
+        while (totalGood > 0 && !bfs.isEmpty()) {
+            int size = bfs.size();
+            while (size > 0) {
+                size--;
+                int[] curPos = bfs.poll();
+                for (int[] direction : DIRECTIONS) {
+                    int nextRow = curPos[0] + direction[0];
+                    int nextCol = curPos[1] + direction[1];
+                    if (nextRow < 0 || nextCol < 0 || nextRow >= M || nextCol >= N) continue;
+                    if (grid[nextRow][nextCol] == GOOD) {
+                        grid[nextRow][nextCol] = BAD;
+                        totalGood -= 1;
+                        bfs.offer(new int[]{nextRow, nextCol});
+                    }
+                }
+            }
+            steps++;
+        }
+
+        return totalGood > 0 ? -1 : steps; 
+    }
+}
+
+```

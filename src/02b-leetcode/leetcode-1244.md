@@ -74,6 +74,9 @@ class Leaderboard {
 
 用 TreeMap 的写法也可以
 
+其实确实是更好的写法。同时注意这个题的复杂性来源，很多选手会同分，所以处理起来相当麻烦。
+而且每次 addScore 都涉及到移除旧的 增加新的 很麻烦。
+
 ```java
 class Leaderboard {
 

@@ -97,6 +97,12 @@ Fault Tolerance 可以 提高 availability
 
 # 总结时间 
 
+总结一下 func:
+- 要尽快的搞明白最主要的几个 func requirements, 甚至可以分类。
+    比如有很多个 func requirements, 一类是读，一类是写。或者一类是商家，一类是用户。
+    所以快速分类，然后再写每个分类下的 func requirement.
+- 然后可以一个一个func来分析这个最重要的non-func 是什么。
+
 总结一下 Non-func:
 
 - Scalability：
