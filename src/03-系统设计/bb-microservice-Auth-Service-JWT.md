@@ -37,6 +37,7 @@ This service grants authentication and authorization (Auth for short) to a user 
     因此 access token 的有效时间往往很短。应用会重复地利用 refresh token 生成新的 access token.
     - refresh token 是指派给了特定的 user, 并且储存在用户的 cookie 和 Auth Server 的 cache layer 里，如 Redis。因此如果 refresh token 被盗，我们可以随时 disable 这个 refresh token. 稍微安全一点。
 
+这里 access token 就是 jwt 的 signature.
 
 
 # Reference

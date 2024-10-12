@@ -16,6 +16,8 @@ You are given a helper function bool knows(a, b) which tells you whether A knows
 到最后会剩下唯一的一个候选者，为了确认，我们从头到尾过一遍看看他是不是
 一个人也不认识，是不是所有人都认识他。当然还要注意排除他自己认识自己的情况。
 
+2024 补充一下，先假设有一个名人，如果有这样一个名人的话，它就是所有节点的 root.或者说是所有节点的公共儿子。那么我们从任意一个节点出发向上找爹，都应该能找到这个 root. 所以我们找到之后，验证一下这个假想的是不是真的 root. 
+
 ```Java
 public class Solution extends Relation {
     public int findCelebrity(int n) {

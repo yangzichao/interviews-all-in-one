@@ -11,6 +11,7 @@
 p 是 k 次的任务数量。比如 k 个 A 和 k 个 B， p = 2.        
 反之，如果它填满了。那么一定是 tasks 的长度是答案，这个确实很有意思，不知道怎么证明。
 
+即，任务总完成时间只跟最高频的一个或者几种任务有关。
 ```java
 class Solution {
     public int leastInterval(char[] tasks, int n) {

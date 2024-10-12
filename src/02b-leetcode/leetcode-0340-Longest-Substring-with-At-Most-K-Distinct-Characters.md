@@ -58,3 +58,32 @@ class Solution {
 }
 ​
 ```
+
+好多年没写了吧, 2024
+
+
+```java
+class Solution {
+    public int lengthOfLongestSubstringKDistinct(String s, int k) {
+        if (k == 0) return 0;
+        // maintain a sliding window, if there are more distinct characters
+        int left = 0;
+        int longest = 0;
+        Map<Character, Integer> counts = new HashMap<>();
+        for (int right = 0; right < s.length(); right++) {
+            char charAtRight = s.charAt(right);
+            counts.put(charAtRight, counts.getOrDefault(charAtRight, 0) + 1);
+            while (counts.size() > k) {
+                char charAtLeft = s.charAt(left);
+                counts.put(charAtLeft, counts.get(charAtLeft) - 1);
+                if (counts.get(charAtLeft).equals(0)) {
+                    counts.remove(charAtLeft);
+                }
+                left++;
+            }
+            longest = Math.max(longest, right - left + 1);
+        }
+        return longest;
+    }
+}
+```

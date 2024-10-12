@@ -74,3 +74,27 @@ class Solution {
 }
 ​
 ```
+
+
+2024 把一个 method 包起来还是更好看的。
+
+```java
+class Solution {
+    // Analysis, this equals to find the Maximum depthLeft + depthRight of among all nodes.
+    // Needs to do the tree travelsal 
+    public int diameterOfBinaryTree(TreeNode root) {
+        int[] diameter = new int[1];
+        helper(root, diameter);
+        return diameter[0];
+    }
+
+    private int helper(TreeNode node, int[] diameter) {
+        if (node == null) return 0;
+        int depthLeft = helper(node.left, diameter);
+        int depthRight = helper(node.right, diameter);
+        int maxDepth = Math.max(depthLeft, depthRight) + 1;
+        diameter[0] = Math.max(diameter[0], depthLeft + depthRight);
+        return maxDepth;
+    }
+}
+```

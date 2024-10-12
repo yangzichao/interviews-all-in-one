@@ -92,3 +92,32 @@ class Solution {
     }
 }
 ```
+
+
+2024: 好久没写了，都忘记了 \\.
+
+```java
+class Solution {
+    public int compareVersion(String version1, String version2) {
+        String[] v1 = version1.split("\\.");
+        String[] v2 = version2.split("\\.");
+        int maxLength = Math.max(v1.length, v2.length);
+        for (int i = 0; i < maxLength; i++) {
+            int curV1 = i >= v1.length ? 0 : strToInt(v1[i]);
+            int curV2 = i >= v2.length ? 0 :strToInt(v2[i]);
+            if (curV1 != curV2) {
+                return curV1 < curV2 ? -1 : 1;
+            }
+        }
+        return 0;      
+    }
+
+    private int strToInt(String str) {
+        int num = 0;
+        for (char c : str.toCharArray()) {
+            num = (num * 10) + (int) (c - '0');
+        }
+        return num;
+    }
+}
+```

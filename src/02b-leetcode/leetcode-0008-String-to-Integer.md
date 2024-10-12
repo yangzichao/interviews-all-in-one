@@ -57,3 +57,35 @@ class Solution {
     }
 }
 ```
+
+
+
+
+
+
+```java
+class Solution {
+    public int myAtoi(String s) {
+        int sign = 0; // sign = 0 means no sign,
+        int num = 0;
+        boolean isDigitMet = false;
+        for (char c : s.toCharArray()) {
+            if (c == ' ') continue;
+            if (c == '+' || c == '-') {
+                if (sign != 0) break;
+                if (isDigitMet) break;
+                sign = c == '+' ? 1 : -1;
+                continue;
+            }
+            if (Character.isDigit(c)) {
+                isDigitMet = true;
+                // ignore integer overflow
+                num = num * 10 + (int) (c - '0');
+            } else {
+                break;
+            }
+        }
+        return sign == 0 ? (int) num : sign * num;
+    }
+}
+```

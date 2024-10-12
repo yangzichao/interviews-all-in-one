@@ -135,3 +135,7 @@ Object Store 用一堆桶，每个桶装一类文件。
 - IO performance 差一点
 
 
+# 杂七杂八的说法 
+如果没有一定要用 ACID 的话，可能倾向于用 NoSQL, 更便宜，更好 sharding.
+- 为什么 NoSQL 更好 sharding？因为没有 join 啊，复杂的table 关系让你的 sharding 变得更困难。
+    说到 sharding, 提 shard_id, 还有就是 hotspot 问题。

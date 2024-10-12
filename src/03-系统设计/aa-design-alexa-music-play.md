@@ -15,14 +15,29 @@ Also another thing that was pointed out to me is I should be mindful about a lar
 
 
 # Analysis
+主要矛盾, low latency < 1 - 5s
+次要矛盾, 模糊搜索 fuzzy search,
+其他矛盾，data 储存, authentication
 
-这里面有一个部分是有原型的，就是库存管理。
+流程 alexa -> nlp service -> music service -> music db
+为了解决 low latency, alexa 要 trim, compress 这个 voice information. 然后 transcript into text. 
+这样发送到 server 才不会接收语音。
+
+nlp service call music api. 
+返回 music meta data.
+
+然后由于 nlp 不一定很完美，所以要支持 fuzzy search, which is elastic search. 
+
+歌曲也可以想一想用什么 db, sql 和 nosql 都行，trade off 一下.
+
+
 
 
 
 # Non-Func Requirement I guessed
 0. Availability & scalability, for sure
-1. Low Latency, otherwise user can be frustrating 
+1. Low Latency, otherwise user can be frustrating < 1s
+
 
 
 ## Domain Knowledge
@@ -35,7 +50,7 @@ Also another thing that was pointed out to me is I should be mindful about a lar
 
 
 
-# 评论区参考
+# 评论区参考 感觉一般吧
 Capacity estimation:
 100 million users
 40 million DAU
