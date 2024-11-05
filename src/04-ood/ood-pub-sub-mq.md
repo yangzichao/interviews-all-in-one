@@ -12,5 +12,4 @@ OO Design for a pub-sub system, involving Publisher, Subscriber, Queue and Queue
 - 这里我们把每个topic就用一个queue实现就好。
 - 现实中，point to point 的部分，被包装成一个 consumer group. 而 comsumer group 是对应 pub sub 的多对多。
 - Push 的模式对应的是 observer design pattern.
-- 因为是ood 对于java要注意到，这里queue要注意 thread-safe的问题。如果是，多对多的情形，consumer 也要注意 thread-safe.
-
+- 因为是ood 对于java要注意到，这里queue要注意 thread-safe的问题。如果是，多对多的情形，consu

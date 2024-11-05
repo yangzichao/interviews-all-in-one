@@ -163,11 +163,35 @@ of this problem to the MVP version.
 # 20241011
 
 MySQL single server 可支持 1000 QPS, REDIS 可以 100k QPS
+MongoDB (NoSQL) 10k QPS level read
 
 REDIS:
 - Master-slave 的结构 disaster tolerance. 
 - 可以通过lua脚本支持 Atomicity.
-- 单线程数据库，i/omuptiplexing 实现并发（查一查）
+- 单线程数据库，i/o muptiplexing 实现并发（查一查）
 
 九章的这个秒杀视频确实还不错
 https://www.youtube.com/watch?v=4FLQMDJjNXU
+
+# 20241013
+
+不同步的 API 往往意味着有一个 MessageQueue。
+MessageQueue的作用是可以 mitigate peak QPS. 
+如果 QPS 和 peak QPS 差值很大，就要想能不能 MQ.
+
+https://www.youtube.com/watch?v=5BdGCANeV2o
+
+
+SQL 做搜索不太强的
+ElasticSearch 搜索强，但是它把东西都丢进 memory 
+所以很吃内存，需要一个内存很强的机器。
+
+
+Read-heavy & Write heavy 的话用数据库就不方便了，应该 WAL。
+
+
+面试tip句子: I want to talk about the topics you think that is important. 
+
+# 20241016
+
+Heat beat to check health of the client

@@ -86,7 +86,7 @@ abstract class DecoratorFilter implements FileFilter {
     // public boolean accept(File file) {
     //     return firstFilter.accept(file);
     // }
-    // Abstract class 不用 实现一切
+    // Abstract class 不用 实现一切 可以直接忽略 interface
 }
 
 class AndFilter extends DecoratorFilter {

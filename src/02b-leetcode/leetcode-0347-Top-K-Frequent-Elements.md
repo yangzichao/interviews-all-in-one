@@ -117,3 +117,33 @@ class Solution {
     }
 }
 ```
+
+
+2024 的解答 maxHeap
+
+```java
+class Solution {
+    public int[] topKFrequent(int[] nums, int k) {
+        Map<Integer, Integer> freqs = new HashMap<>();
+        // 1. We are going to count the frequency
+        for (int num : nums) {
+            freqs.put(num, freqs.getOrDefault(num, 0) + 1);
+        }
+
+        // 2. We are going to find top K by, 
+        // 2a. PriorityQueue 
+        // 2b. BucketSort
+
+        PriorityQueue<Pair<Integer, Integer>> maxHeap = new PriorityQueue<>((a, b) -> b.getKey().compareTo(a.getKey()));
+        for (Integer key : freqs.keySet()) {
+            maxHeap.offer(new Pair<>(freqs.get(key), key));
+        }
+
+        int[] ans = new int[k];
+        for (int i = 0; i < k; i++) {
+            ans[i] = maxHeap.poll().getValue();
+        }
+        return ans;
+    }
+}
+```

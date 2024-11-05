@@ -32,7 +32,7 @@ nlp service call music api.
 
 
 
-
+- 一个细节，对于latency 很高的，API 可以采用 async api, 先返回一个我找到了很多结果，你想要继续吗？
 
 # Non-Func Requirement I guessed
 0. Availability & scalability, for sure

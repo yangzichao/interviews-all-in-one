@@ -19,6 +19,9 @@ https://juejin.im/post/5a4b433b6fb9a0451705916f
 https://blog.csdn.net/justloveyou_/article/details/71713781
 </pre>
 
+# Follow up seen
+如果每个cache会expired， easy 
+
 ## Method 1 Double LinkedList + HashMap
 
 <pre>

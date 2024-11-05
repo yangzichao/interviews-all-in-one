@@ -29,8 +29,10 @@
 
 
 ### 问题三 microservice 的 Atomicity 
+
 因为 monolithic 很好处理 ACID, 但是 microservice 可能改好几个表都是独立的操作。如果保证这个 ACID 呢？
 就是用 SAGA. Saga 是一系列的 local transactions, 如果一个失败了，就往回找补一个compensation transaction。 这个提供的就是 eventual consistency.
+
 
 
 # 问题简单描述

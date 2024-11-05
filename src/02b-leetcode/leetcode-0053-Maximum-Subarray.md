@@ -72,3 +72,24 @@ class Solution {
 ```
 
 2272 也是用到了 Kadane's algo
+
+
+# 2024
+疏于练习
+
+```java
+class Solution {
+    public int maxSubArray(int[] nums) {
+        int cur = nums[0];
+        int max = nums[0];
+        for (int i = 1; i < nums.length; i++) {
+            if (cur < 0) {
+                cur = 0;
+            }
+            cur += nums[i];
+            max = Math.max(max, cur);
+        }
+        return max;
+    }
+}
+```
