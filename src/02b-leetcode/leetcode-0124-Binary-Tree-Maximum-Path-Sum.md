@@ -15,6 +15,21 @@ https://leetcode.com/problems/binary-tree-maximum-path-sum/
 时间复杂度是 O(N) 我们只遍历节点一遍。
 
 ```java
+/**
+ * Definition for a binary tree node.
+ * public class TreeNode {
+ *     int val;
+ *     TreeNode left;
+ *     TreeNode right;
+ *     TreeNode() {}
+ *     TreeNode(int val) { this.val = val; }
+ *     TreeNode(int val, TreeNode left, TreeNode right) {
+ *         this.val = val;
+ *         this.left = left;
+ *         this.right = right;
+ *     }
+ * }
+ */
 class Solution {
     private int globalMax;
     public int maxPathSum(TreeNode root) {
@@ -23,14 +38,14 @@ class Solution {
         findNodeContribution(root);
         return globalMax;
     }
-    private int dfs(TreeNode root){
+    private int findNodeContribution(TreeNode root){
         //关键的观察是，一个树当中的道路，只能至多是两条从同一节点拼成的路
         //不能拐弯抹角的走
         if(root == null) return 0;
-        int left = Math.max( dfs(root.left), 0 ); // 这个 Math.max 很关键，如果是负数我们就不要他们的贡献了。u
-        int right = Math.max( dfs(root.right), 0);
+        int left = Math.max( findNodeContribution(root.left), 0 ); // 这个 Math.max 很关键，如果是负数我们就不要他们的贡献了。u
+        int right = Math.max( findNodeContribution(root.right), 0);
         int ss = left + right + root.val;
-        curMax = Math.max(ss, curMax);
+        globalMax = Math.max(ss, globalMax);
         return root.val + Math.max(left,right);
     }
 }

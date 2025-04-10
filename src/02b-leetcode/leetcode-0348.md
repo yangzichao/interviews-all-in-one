@@ -66,6 +66,46 @@ class TicTacToe {
         return 0;
     }
 }
+```
 
+不敢想象，上面是我自己想出来的答案吗？
 
+下面是2025年写的
+```java
+class TicTacToe {
+    // boolean[][] board;
+    int[] rowCheck;
+    int[] colCheck;
+    int[] diagCheck;
+
+    public TicTacToe(int n) {
+        // board = new boolean[n][n];
+        rowCheck = new int[n];
+        colCheck = new int[n];
+        diagCheck = new int[2];
+    }
+    
+    public int move(int row, int col, int player) {
+        int N = rowCheck.length;
+        int val = player == 1 ? 1 : -1;
+        int winner = 0;
+        rowCheck[row] += val; if (Math.abs(rowCheck[row]) == N) winner =  rowCheck[row] > 0 ? 1 : 2;
+        colCheck[col] += val; if (Math.abs(colCheck[col]) == N) winner =  colCheck[col] > 0 ? 1 : 2;
+        if (row == col) {
+            diagCheck[0] += val;
+            if (Math.abs(diagCheck[0]) == N) winner =  diagCheck[0] > 0 ? 1 : 2;
+        }
+        if (row + col == rowCheck.length - 1) {
+            diagCheck[1] += val;
+            if (Math.abs(diagCheck[1]) == N) winner =  diagCheck[1] > 0 ? 1 : 2;
+        }
+        return winner;
+    }
+}
+
+/**
+ * Your TicTacToe object will be instantiated and called as such:
+ * TicTacToe obj = new TicTacToe(n);
+ * int param_1 = obj.move(row,col,player);
+ */
 ```

@@ -36,3 +36,5 @@ class Solution {
 空间复杂度 Space Complexity O(N)
 
 变形 1010.
+变形 523
+变形 560

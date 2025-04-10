@@ -64,3 +64,40 @@ class Solution {
 }
 ​
 ```
+
+
+
+
+## 2025 
+
+2025 年憋的这个 虽然时间复杂度是 N log N, 但是也还好。
+好好想想上面的那个 O(N) 解法。不难，我尝试简短解释一下，上面的特殊解法的原理是，
+我们把 target 的 String 打碎成为一堆 char 供取用，然后按照 order 的顺序来append.
+
+```java
+class Solution {
+    public String customSortString(String order, String s) {
+        // map character to index, index is naturally there priority, smaller the largers
+        // we can pass a new comparator and sort 
+        Map<Character, Integer> charRanks = new HashMap<>();
+        for (int i = 0; i < order.length(); i++) {
+            charRanks.put(order.charAt(i), i + 1);
+        }
+        PriorityQueue minHeap = new PriorityQueue<>((a, b) -> {
+            int rankA = charRanks.getOrDefault(a, -1);
+            int rankB = charRanks.getOrDefault(b, -1);
+            return rankA - rankB;
+        });
+        for (char c : s.toCharArray()) {
+            minHeap.offer(c);
+        }
+        StringBuilder sb = new StringBuilder();
+        while (!minHeap.isEmpty()) {
+            sb.append(minHeap.poll());
+        }
+
+        return sb.toString();
+    }
+}
+
+```

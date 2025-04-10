@@ -140,3 +140,58 @@ class Solution {
 ## Method 3
 
 真正的 O(1) 还包括 morris traversal.
+
+
+## 2025
+
+2025 年明显对树没有那么熟了。当年估计是秒杀的题，现在竟然觉得挺有难度。
+
+```java
+/*
+// Definition for a Node.
+class Node {
+    public int val;
+    public Node left;
+    public Node right;
+
+    public Node() {}
+
+    public Node(int _val) {
+        val = _val;
+    }
+
+    public Node(int _val,Node _left,Node _right) {
+        val = _val;
+        left = _left;
+        right = _right;
+    }
+};
+*/
+
+class Solution {
+    public Node treeToDoublyList(Node root) {
+        if (root == null) return null;
+        Deque<Node> stack = new ArrayDeque<>();
+        Node cur = root;
+        ArrayList<Node> sortedList = new ArrayList<>();
+        while (!stack.isEmpty() || cur != null) {
+            while (cur != null) {
+                stack.push(cur);
+                cur = cur.left;
+            }
+            cur = stack.pop();
+            sortedList.add(cur);
+            cur = cur.right;
+        }
+        sortedList.add(sortedList.get(0));
+        for (int i = 0; i < sortedList.size() - 1; i++) {
+            Node node1 = sortedList.get(i);
+            Node node2 = sortedList.get(i + 1);
+            node1.right = node2;
+            node2.left = node1;
+        }
+        return sortedList.get(0);
+    }
+
+}
+```

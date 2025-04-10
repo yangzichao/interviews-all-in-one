@@ -35,7 +35,7 @@ class Solution {
 ```java
 class Solution {
     public int findKthLargest(int[] nums, int k) {
-        // Min Heap
+        // Min Heap, and by default it is minHeap
         PriorityQueue<Integer> heap = new PriorityQueue<>((n1, n2) -> n1 - n2);
         for(int i = 0; i < nums.length; i++){
             heap.offer(nums[i]);
@@ -213,4 +213,55 @@ class Solution {
     }
 }
 
+```
+
+
+## 2025 写的
+
+这个是直接反向排个序。
+
+```java
+class Solution {
+    public int findKthLargest(int[] nums, int k) {
+        // quick select:
+        // idea is: We randomly found one element, make a partition based on that:
+        // move all smaller element to the right, move all larger to the left
+        // if after the partition, the element is at index k - 1, that is the element!
+        // if not, we do quick select on either the subarray on the left, or right.
+
+        return quickSelectHelper(nums, 0, nums.length - 1, k);
+    }
+    private int quickSelectHelper(int[] arr, int i, int j, int k) {
+        // 1. randomly pick one index
+        int randomIndex = i + (int) Math.floor((j - i + 1) * Math.random()); 
+        // 2. quickselect and then decide (like binary search)
+        int qsIndex = partition(arr, i, j, randomIndex);
+        if (qsIndex == k - 1) return arr[qsIndex];
+        if (qsIndex < k - 1) return quickSelectHelper(arr, qsIndex + 1, j, k);
+        return quickSelectHelper(arr, i, qsIndex - 1, k);
+    }
+    // partition returns the index of the partition element 
+    private int partition(int[] arr, int start, int end, int randomIndex) {
+        // 1. move it to the end of the arr / sub arrary
+        int pivot = arr[randomIndex];
+        swap(arr, randomIndex, end);
+        // 2. two pointer, one from left, one from right, they will meet
+        int left = start;
+        for (int i = start; i <= end; i++) {
+            if (arr[i] > pivot) {
+                swap(arr, i, left);
+                left++;
+            } 
+        }
+
+        // 3. swap pivot element back. and return the index 
+        swap(arr, left, end);
+        return left;
+    }
+    private void swap(int[] arr, int i, int j) {
+        int temp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = temp;
+    }
+}
 ```

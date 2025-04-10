@@ -48,3 +48,26 @@ class Solution {
 }
 
 ```
+
+
+主要是这个题想让单调栈，但是设计的不好。
+
+```java
+class Solution {
+    public int[] findBuildings(int[] heights) {
+        Deque<int[]> monotonicStack = new ArrayDeque<>();
+
+        for (int i = 0; i < heights.length; i++) {
+            while (!monotonicStack.isEmpty() && monotonicStack.peekLast()[0] <= heights[i]) {
+                    monotonicStack.removeLast();
+            }
+            monotonicStack.addLast(new int[]{heights[i], i});
+        }
+        int[] ans = new int[monotonicStack.size()];
+        for (int i = 0; i < ans.length; i++) {
+            ans[i] = monotonicStack.removeFirst()[1];
+        }
+        return ans;
+    }
+}
+```

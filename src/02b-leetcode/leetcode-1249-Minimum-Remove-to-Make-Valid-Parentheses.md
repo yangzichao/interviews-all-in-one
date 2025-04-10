@@ -162,3 +162,38 @@ class Solution {
     }
 }
 ```
+
+
+
+# 2025
+
+我太牛了 竟然自己写出了和双扫不一样的解法，这个时间复杂度比leetcode官方解法还要好一点。
+
+```java
+class Solution {
+    public String minRemoveToMakeValid(String s) {
+        int net = 0;
+        StringBuilder sb = new StringBuilder();
+        ArrayList<Integer> leftIndices = new ArrayList<>();
+        for (char c : s.toCharArray()) {
+            if (c == '(') {
+                net += 1;
+                leftIndices.addLast(sb.length());
+            } else if (c == ')') {
+                if (net == 0) {
+                    continue;
+                }
+                net -= 1;
+                leftIndices.removeLast();
+            } 
+            sb.append(c);
+        }
+        // remove from the last so that original order won't be changed
+        for (int i = leftIndices.size() - 1; i >= 0; i--) {
+            int indexToRemove = leftIndices.get(i);
+            sb.deleteCharAt(indexToRemove);
+        }
+        return sb.toString();
+    }
+}
+```

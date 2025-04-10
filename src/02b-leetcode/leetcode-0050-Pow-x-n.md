@@ -37,6 +37,8 @@ class Solution {
 再看一个例子 5^18 显然是分成 5^2 和 5^16 分别作为 carry 和 power.  
 
 对于 java 我们只能用  long 来避免 int 的溢出问题，因为只有有符号的数字类型。
+
+说的简单点，这个算法就是把幂运算，拆成 x^{2, 4, 8, 16, 32, .. 2^k} + 其他杂鱼部分。
 ```java
 class Solution {
     public double myPow(double x, int n) {

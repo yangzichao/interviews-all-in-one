@@ -46,3 +46,51 @@ class Solution {
     }
 }
 ```
+
+上面的写的好啊 
+但是下面的应该是2025年更为原创的想法。
+
+```java
+class Solution {
+    public char[][] updateBoard(char[][] board, int[] click) {
+        int[][] directions = new int[][]{{1, 0}, {0, 1}, {-1, 0}, {0, -1}, {1, -1}, {1, 1}, {-1, 1}, {-1, -1}};
+        // 1 - 4 normal directions, 5 - 8 diags
+        int M = board.length;
+        int N = board[0].length;
+        Deque<int[]> queue = new ArrayDeque<>();
+        queue.offer(click);
+        while (!queue.isEmpty()) {
+            int[] cur = queue.poll();
+            int curRow = cur[0];
+            int curCol = cur[1];
+            if (board[curRow][curCol] == 'M') {
+                board[curRow][curCol] = 'X';
+                return board;
+            }
+            if (board[curRow][curCol] == 'B') continue;
+            int count = 0;
+            for (int[] direction : directions) {
+                int nextRow = curRow + direction[0];
+                int nextCol = curCol + direction[1];
+                if (nextRow < 0 || nextCol < 0 || nextRow >= M || nextCol >= N) continue;
+                if (board[nextRow][nextCol] == 'M') count += 1;
+            }
+            if (count > 0) {
+                board[curRow][curCol] = (char) ('0' + count);
+                continue;
+            } 
+            board[curRow][curCol] = 'B';
+
+            for (int i = 0; i < 8; i++) {
+                int nextRow = curRow + directions[i][0];
+                int nextCol = curCol + directions[i][1];
+                if (nextRow < 0 || nextCol < 0 || nextRow >= M || nextCol >= N) continue;
+                if (board[nextRow][nextCol] == 'E') {
+                    queue.offer(new int[]{nextRow, nextCol});
+                }
+            }
+        }
+        return board;
+    }
+}
+```

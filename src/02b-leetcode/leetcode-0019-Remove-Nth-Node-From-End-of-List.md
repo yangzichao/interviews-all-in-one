@@ -72,3 +72,43 @@ class Solution {
     }
 }
 ```
+
+
+# 2025 年写的
+
+```java
+/**
+ * Definition for singly-linked list.
+ * public class ListNode {
+ *     int val;
+ *     ListNode next;
+ *     ListNode() {}
+ *     ListNode(int val) { this.val = val; }
+ *     ListNode(int val, ListNode next) { this.val = val; this.next = next; }
+ * }
+ */
+class Solution {
+    public ListNode removeNthFromEnd(ListNode head, int n) {
+        int length = 0;
+        ListNode p = head;
+        while (p != null) {
+            p = p.next;
+            length++;
+        }
+        // remove nth from the end of the list, equals to remove the (length - n + 1)th. 
+        // And we have to move to the (length - n)th node, and make length - n moves from dummyHead;
+        int moves = length - n;
+        ListNode dummyHead = new ListNode();
+        dummyHead.next = head;
+        p = dummyHead;
+        while (moves > 0) {
+            moves--;
+            p = p.next;
+        }
+        if (p.next != null) {
+            p.next = p.next.next;
+        }
+        return dummyHead.next;
+    }
+}
+```

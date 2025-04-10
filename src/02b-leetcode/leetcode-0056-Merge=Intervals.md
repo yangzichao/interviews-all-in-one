@@ -69,3 +69,41 @@ class Solution {
 // when connected, update the end.
 // when disconnected, compare the old end and new start, that is it.
 ```
+
+
+
+
+## 2025
+
+思路确实更清晰了一点
+```java
+class Solution {
+    public int[][] merge(int[][] intervals) {
+        Arrays.sort(intervals, (a, b) -> a[0] - b[0]);
+        // prevRange
+        // curRange
+        // [  { ] }, has overlap, merge into prevRange
+        // [  ] [   ]   has no overlap, add first to answer. prevRange = curRange;
+        ArrayList<int[]> ans = new ArrayList<>();
+        if (intervals.length == 0) return new int[][]{};
+        int[] prevRange = intervals[0];
+        for (int i = 1; i < intervals.length; i++) {
+            int[] curRange = intervals[i];
+            if (prevRange[1] >= curRange[0]) {
+                prevRange[1] = Math.max(prevRange[1], curRange[1]);
+            } else {
+                ans.add(new int[]{prevRange[0], prevRange[1]});
+                prevRange = curRange;
+            }
+        }
+        ans.add(new int[]{prevRange[0], prevRange[1]});
+        int[][] res = new int[ans.size()][2];
+        for (int i = 0; i < res.length; i++) {
+            res[i] = ans.get(i);
+        }
+        return res;
+    }
+}
+```
+
+

@@ -93,3 +93,23 @@ class Solution {
     }
 }
 ```
+
+
+## 2025 
+```java
+class Solution {
+    public int maxSubArray(int[] nums) {
+        int max = Integer.MIN_VALUE;
+        int cur = Integer.MIN_VALUE;
+        for (int num : nums) {
+            if (cur < 0) {
+                cur = num;
+            } else {
+                cur += num;
+            }
+            max = Math.max(max, cur);
+        }
+        return max;
+    }
+}
+```

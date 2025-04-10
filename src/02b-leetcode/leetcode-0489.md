@@ -5,7 +5,7 @@
 dfs -> 回溯其实也一样的道理
 机器人这里就是变了一点儿，即回溯postOrder这一步你需要手动操作机器人回家。
 顺时针或者逆时针其实并无所谓，乃至于你上左右下，下上右左这样的顺序扫地都没关系，
-只要你的代码能配合好。选择上下左右只是为了好写代码一点。
+只要你的代码能配合好。选择上右下左只是为了好写代码一点。
 
 
 
@@ -29,7 +29,7 @@ dfs -> 回溯其实也一样的道理
  */
 
 class Solution {
-    private int[] DIRECTIONS = new int[]{-1, 0, 1, 0, -1}; // 上下左右
+    private int[] DIRECTIONS = new int[]{-1, 0, 1, 0, -1}; // 上右下左 顺时针
     private Set<String> marked;
     private Robot robot;
     public void cleanRoom(Robot robot) {

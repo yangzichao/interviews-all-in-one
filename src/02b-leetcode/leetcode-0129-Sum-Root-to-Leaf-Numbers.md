@@ -92,3 +92,48 @@ class Solution {
 }
 ​
 ```
+
+
+
+## 2025 
+
+```java
+/**
+ * Definition for a binary tree node.
+ * public class TreeNode {
+ *     int val;
+ *     TreeNode left;
+ *     TreeNode right;
+ *     TreeNode() {}
+ *     TreeNode(int val) { this.val = val; }
+ *     TreeNode(int val, TreeNode left, TreeNode right) {
+ *         this.val = val;
+ *         this.left = left;
+ *         this.right = right;
+ *     }
+ * }
+ */
+class Solution {
+    public int sumNumbers(TreeNode root) {
+        if (root == null) return 0;
+        Deque<Pair<TreeNode, Integer>> stack = new ArrayDeque<>();
+        int sum = 0;
+        stack.push(new Pair<TreeNode, Integer>(root, root.val));
+        while (!stack.isEmpty()) {
+            Pair<TreeNode, Integer> curPair = stack.pop();
+            TreeNode curNode = curPair.getKey();
+            int curVal = curPair.getValue();
+            if (curNode.left == null && curNode.right == null) {
+                sum += curVal;
+            }
+            if (curNode.left != null) {
+                stack.push(new Pair<TreeNode, Integer>(curNode.left, curVal * 10 + curNode.left.val));
+            }
+            if (curNode.right != null) {
+                stack.push(new Pair<TreeNode, Integer>(curNode.right, curVal * 10 + curNode.right.val));
+            }
+        }
+        return sum;
+    }
+}
+```

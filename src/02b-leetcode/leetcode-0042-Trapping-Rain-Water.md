@@ -276,3 +276,41 @@ class Solution {
     }
 }
 ```
+
+## 2025
+前面的分析虽然都很好，但是是适用于幼年期初刷题的我。
+现在简单暴力的总结这个思想，便于快速复习。
+
+核心的计算思想是：对于每一个格子，我们如果知道它左侧最高和它右侧最高，那么两者最低值，我们立刻知道这个格子最多储存的水。
+
+那么如果我们左右两侧双指针。
+对于左侧指针l，我们清楚记录左侧最高，但不知道右侧最高。
+对于右侧指针r，我们清楚记录右侧最高，但不知道左侧最高。
+
+但是，如果
+l左侧最高比r的右侧最高低，那么显然 l 最多储存的水立刻就知道了。
+反之同理。
+
+```java
+class Solution {
+    public int trap(int[] height) {
+        int left = 1;
+        int right = height.length - 2;
+        int maxLeft = 0;
+        int maxRight = 0;
+        int trapSum = 0;
+        while (left <= right) {
+            maxLeft = Math.max(maxLeft, height[left - 1]);
+            maxRight = Math.max(maxRight, height[right + 1]);
+            if (maxLeft < maxRight) {
+                trapSum += Math.max(maxLeft - height[left], 0);
+                left++;
+            } else {
+                trapSum += Math.max(maxRight - height[right], 0);
+                right--;
+            }
+        }
+        return trapSum;
+    }
+}
+```

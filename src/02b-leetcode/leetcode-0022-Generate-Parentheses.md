@@ -1,4 +1,4 @@
-# 022J. Generate Parentheses
+# 022 Generate Parentheses
 
 这个题竟然没有存过一版吗？
 
@@ -29,4 +29,37 @@ class Solution {
     }
 }
 
+```
+
+
+
+## 2025 
+我也震惊 之前没写过这题？
+
+```java
+class Solution {
+    public List<String> generateParenthesis(int n) {
+        StringBuilder sb = new StringBuilder();
+        List<String> ans = new ArrayList<>();
+        helper(ans, sb, 0, 2 * n);
+        return ans;
+    }
+
+    private void helper(List<String> ans, StringBuilder sb, int net, int max) {
+        if (sb.length() == max) {
+            if (net == 0) {
+                ans.add(sb.toString());
+            }
+            return;
+        }
+        sb.append('(');
+        helper(ans, sb, net + 1, max);
+        sb.deleteCharAt(sb.length() - 1);
+
+        if (net == 0) return;
+        sb.append(')');
+        helper(ans, sb, net - 1, max);
+        sb.deleteCharAt(sb.length() - 1);
+    }
+}
 ```

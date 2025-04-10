@@ -35,3 +35,32 @@ class Solution {
     }
 }
 ```
+
+
+## 2025
+
+```java
+class Solution {
+    public String simplifyPath(String path) {
+        StringBuilder sb = new StringBuilder();
+        String[] steps = path.split("/");
+        Deque<String> stack = new ArrayDeque<>();
+
+        for (String step : steps) {
+            if (step.length() == 0 || step.equals(".")) continue;
+            if (step.equals("..") ) {
+                if (!stack.isEmpty()) {
+                    stack.pop();
+                }
+                continue;
+            }
+            stack.push(step);
+        }
+        if (stack.isEmpty()) return "/";
+        while (!stack.isEmpty()) {
+            sb.append('/').append(stack.removeLast());
+        }
+        return sb.toString();
+    }
+}
+```

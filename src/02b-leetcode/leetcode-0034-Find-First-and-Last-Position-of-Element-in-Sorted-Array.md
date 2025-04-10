@@ -44,3 +44,41 @@ class Solution {
     }
 }
 ```
+
+
+
+## 2025
+
+竟然没有 update 上面那个笔记吗 ？ 神奇。
+```java
+class Solution {
+    public int[] searchRange(int[] nums, int target) {
+        int[] ans = new int[2];
+        ans[0] = find(nums, target, true);
+        ans[1] = find(nums, target, false);
+        return ans;
+    }
+    private int find(int[] nums, int target, boolean findFirst) {
+        boolean isFound = false;
+        int lo = 0;
+        int hi = nums.length - 1;
+        while (lo <= hi) {
+            int mid = (lo + hi) >>> 1;
+            if (nums[mid] < target) {
+                lo = mid + 1;
+            } else if (nums[mid] > target) {
+                hi = mid - 1;
+            } else {
+                isFound = true;
+                if (findFirst) {
+                    hi = mid - 1;
+                } else {
+                    lo = mid + 1;
+                }
+            }
+        }
+        if (!isFound) return -1;
+        return findFirst ? lo : hi;
+    }
+}
+```

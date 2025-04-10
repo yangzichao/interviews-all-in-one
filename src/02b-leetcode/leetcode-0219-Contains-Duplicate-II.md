@@ -28,3 +28,22 @@ class Solution {
     }
 }
 ```
+
+
+# 2025 年竟然原创出了还不错的解法
+
+```java
+class Solution {
+    public boolean containsNearbyDuplicate(int[] nums, int k) {
+        Map<Integer, Integer> numToLastIndex = new HashMap<>();
+        for (int i = 0; i < nums.length; i++) {
+            if (numToLastIndex.containsKey(nums[i])) {
+                int lastIndex = numToLastIndex.get(nums[i]);
+                if (i - lastIndex <= k) return true;
+            }
+            numToLastIndex.put(nums[i], i);
+        }
+        return false;
+    }
+}
+```

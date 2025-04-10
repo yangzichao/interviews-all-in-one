@@ -98,3 +98,9 @@ class Solution {
     }
 }
 ```
+
+
+值得写一下这个题的 state transfer 方程，我也不知道为什么以前没有写。
+就是很简单的 dp[i] 代表着当前有没有可能 通过几个字符串组合匹配到此处。
+比如 输入如果是`leetcode`, `lee,leet,cod`
+那么 dp 是 `tffttfftf` 其中第一个t是dummy元素 代表空字符串。所以说这个题很像 coin change 是颇有道理的。

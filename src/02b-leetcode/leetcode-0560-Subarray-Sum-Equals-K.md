@@ -23,6 +23,8 @@ difficulty: Medium
 	<li>The range of numbers in the array is [-1000, 1000] and the range of the integer <b>k</b> is [-1e7, 1e7].</li>
 </ul>
 </div></section>
+
+这个题还可以参见 523
  
  ## Method One 
  

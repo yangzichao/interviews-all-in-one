@@ -100,3 +100,18 @@ class Solution {
     }
 }
 ```
+
+
+2025 年有了一个新的思考：
+为什么排序interval的时候 我们只按照开始的位置排序就可以了？而不是给结束的位置也定一个优先级？
+比如这样
+```java
+Arrays.sort(intervals, (a, b) -> {
+    if (a[0] == b[0]) {
+        return a[1] - b[1];
+    }
+    return a[0] - b[0];
+});
+```
+
+仔细想想是没有必要的，因为对于这两个interval 结束的位置是 interchangable 的。

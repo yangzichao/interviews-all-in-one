@@ -157,3 +157,59 @@ class Solution {
     }
 }
 ```
+
+
+
+## 2025 写的
+
+这个写法 只适用于 List 
+思路比较有章法
+
+* 建立新旧的 Map 
+* 先处理 next pointer 此步对于 LinkedList来说直接相当于先复制了一遍所有的对象
+* 再处理 random 
+
+因此相比于 2023 版 helper 就不必要再继续处理什么了。 
+
+```java
+/*
+// Definition for a Node.
+class Node {
+    int val;
+    Node next;
+    Node random;
+
+    public Node(int val) {
+        this.val = val;
+        this.next = null;
+        this.random = null;
+    }
+}
+*/
+
+class Solution {
+  public Node copyRandomList(Node head) {
+    if (head == null) return null;
+    Map<Node, Node> oldToNewMap = new HashMap<>();
+    copyHelper(oldToNewMap, head);
+    return oldToNewMap.get(head);
+  }
+
+  private void copyHelper(Map<Node, Node> oldToNewMap, Node node) {
+    Node copyNode = new Node(node.val);
+    oldToNewMap.put(node, copyNode);
+    if (node.next != null) {
+      if (!oldToNewMap.containsKey(node.next)) {
+        copyHelper(oldToNewMap, node.next);
+      }
+      copyNode.next = oldToNewMap.get(node.next);
+    }
+    if (node.random != null) {
+      if (!oldToNewMap.containsKey(node.random)) {
+        copyHelper(oldToNewMap, node.random);
+      }
+      copyNode.random = oldToNewMap.get(node.random);
+    }
+  }
+}
+```

@@ -148,3 +148,36 @@ class Solution {
     }
 }
 ```
+
+
+
+
+## 2025
+
+2025 的原创分析挺好的。机智。
+
+```java
+/**
+ * Definition for a binary tree node.
+ * public class TreeNode {
+ *     int val;
+ *     TreeNode left;
+ *     TreeNode right;
+ *     TreeNode(int x) { val = x; }
+ * }
+ */
+class Solution {
+    public TreeNode lowestCommonAncestor(TreeNode root, TreeNode p, TreeNode q) {
+        // 2 cases
+        // one is p at left sub tree, q at right sub, current root is LCA 
+        // two is both p q on the same sub.
+        // for case one, we return current root as LCA.
+        // for case two, we check the non-empty side, until we found a case one
+        if (root == null || root == p || root == q) return root;
+        TreeNode foundLeft = lowestCommonAncestor(root.left, p, q);
+        TreeNode foundRight = lowestCommonAncestor(root.right, p, q);
+        if (foundLeft != null && foundRight != null) return root;
+        return foundLeft == null ? foundRight : foundLeft;
+    }
+}
+```

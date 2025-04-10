@@ -99,3 +99,29 @@ class Solution {
     }
 }
 ```
+
+
+## 2025 针对 follow up question
+## Follow Up Questions 好像非常好啊
+这个题或许还可以出一个 follow up, 即如果可以允许移除最多两个或者 k 个字符怎么办呢？
+isPalindrome 或许可以用一个递归的办法写，即 k 个就是 k 层。
+
+下面这个答案肯定是对的，但是1216题 TLE了。
+```java
+class Solution {
+    public boolean isValidPalindrome(String s, int k) {
+        return isPalindromeHelper(s, 0, s.length() - 1, k);
+    }
+    private boolean isPalindromeHelper(String s, int left, int right, int k) {
+        int l = left;
+        int r = right;
+        while (l <= r && s.charAt(l) == s.charAt(r)) {
+            l++;
+            r--;
+        }
+        if (l > r) return true;
+        if (k == 0) return false;
+        return isPalindromeHelper(s, l, r - 1, k - 1) || isPalindromeHelper(s, l + 1, r, k - 1);
+    }
+}
+```

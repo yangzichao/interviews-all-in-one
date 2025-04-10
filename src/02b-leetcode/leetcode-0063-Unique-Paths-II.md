@@ -103,3 +103,35 @@ class Solution {
     }
 }
 ```
+
+
+# 2025
+2025 年的
+
+```java
+
+class Solution {
+    public int uniquePathsWithObstacles(int[][] obstacleGrid) {
+        int M = obstacleGrid.length;
+        int N = obstacleGrid[0].length;
+        int[][] dp = new int[M][N];
+        for (int i = 0; i < M; i++) {
+            for (int j = 0; j < N; j++) {
+                if (obstacleGrid[i][j] == 1) {
+                    dp[i][j] = 0;
+                    continue;
+                }
+                if (i == 0 && j == 0) {
+                    dp[i][j] = 1;
+                    continue;
+                }
+                int pathFromAbove = i == 0 ? 0 : dp[i - 1][j];
+                int pathFromLeft = j == 0 ? 0 : dp[i][j - 1];
+                dp[i][j] = pathFromAbove + pathFromLeft;
+            }
+        }
+        return dp[M - 1][N - 1];
+    }
+}
+
+```

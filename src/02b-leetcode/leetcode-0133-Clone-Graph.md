@@ -192,3 +192,55 @@ class Solution {
     }
 }
 ```
+
+
+
+## 2025 年写的 
+
+2025 年的思路最清晰啊。 非常便于理解，很直观。
+这么写是利用了题目中的 “connected" 图。联通图。
+* 如果不是联通图，那么很显然这么写是不行的。
+* 还有就是这个题中的 Map 其实起到了一个图防止成环的作用。
+
+```java
+/*
+// Definition for a Node.
+class Node {
+    public int val;
+    public List<Node> neighbors;
+    public Node() {
+        val = 0;
+        neighbors = new ArrayList<Node>();
+    }
+    public Node(int _val) {
+        val = _val;
+        neighbors = new ArrayList<Node>();
+    }
+    public Node(int _val, ArrayList<Node> _neighbors) {
+        val = _val;
+        neighbors = _neighbors;
+    }
+}
+*/
+
+class Solution {
+    public Node cloneGraph(Node node) {
+        if (node == null) return null;
+        Map<Node, Node> oldToNewMap = new HashMap<>();
+        helper(oldToNewMap, node);
+        return oldToNewMap.get(node);
+    }
+
+    private void helper(Map<Node, Node> oldToNewMap, Node node) {
+        Node newNode = new Node(node.val);
+        oldToNewMap.put(node, newNode);
+        for (Node neighbor : node.neighbors) {
+            if (!oldToNewMap.containsKey(neighbor)) {
+                helper(oldToNewMap, neighbor);
+            }
+            newNode.neighbors.add(oldToNewMap.get(neighbor));
+        }
+    }
+}
+
+```

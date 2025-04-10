@@ -31,6 +31,7 @@
 * [852: Peak-Index-in-a-Mountain-Array](https://leetcode.com/problems/peak-index-in-a-mountain-array/)    
 * [540]() leetcode 540 也是一道非常好的题
 * [1539]() 虽然是一个 easy 但是也是一个非常好的 binary search 的题目
+* [1891](https://leetcode.com/problems/cutting-ribbons/description/) 就是大名鼎鼎的 cut ribbon 了 一定要做
 
 #### Rotated Sorted Array:
 * [033: Search-in-Rotated-Sorted-Array](https://leetcode.com/problems/search-in-rotated-sorted-array/)    

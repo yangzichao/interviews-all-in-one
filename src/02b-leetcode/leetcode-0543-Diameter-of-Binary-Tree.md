@@ -84,14 +84,14 @@ class Solution {
     // Needs to do the tree travelsal 
     public int diameterOfBinaryTree(TreeNode root) {
         int[] diameter = new int[1];
-        helper(root, diameter);
+        depthOfTree(root, diameter);
         return diameter[0];
     }
 
-    private int helper(TreeNode node, int[] diameter) {
+    private int depthOfTree(TreeNode node, int[] diameter) {
         if (node == null) return 0;
-        int depthLeft = helper(node.left, diameter);
-        int depthRight = helper(node.right, diameter);
+        int depthLeft = depthOfTree(node.left, diameter);
+        int depthRight = depthOfTree(node.right, diameter);
         int maxDepth = Math.max(depthLeft, depthRight) + 1;
         diameter[0] = Math.max(diameter[0], depthLeft + depthRight);
         return maxDepth;

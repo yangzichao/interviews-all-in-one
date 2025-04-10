@@ -48,3 +48,28 @@ class Solution {
 }
 
 ```
+
+
+
+# 2025 
+2025 傻了 写的不如上面的好
+```java
+class Solution {
+    public int depthSum(List<NestedInteger> nestedList) {
+        return depthSumHelper(nestedList, 1);
+    }
+
+    private int depthSumHelper(List<NestedInteger> nestedList, int depth) {
+        int intSum = 0;
+        int subSum = 0;
+        for (NestedInteger nestedInt : nestedList) {
+            if (nestedInt.isInteger()) {
+                intSum += nestedInt.getInteger();
+                continue;
+            }
+            subSum += depthSumHelper(nestedInt.getList(), depth + 1);
+        }
+        return intSum * depth + subSum;
+    }
+}
+```

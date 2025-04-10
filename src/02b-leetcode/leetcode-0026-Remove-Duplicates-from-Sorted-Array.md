@@ -85,3 +85,49 @@ class Solution {
     }
 }
 ```
+
+
+## 2025 
+2025 的写法可以对比起来看看
+
+```java
+class Solution {
+    public int removeDuplicates(int[] nums) {
+        int lo = 0;
+        for (int hi = 0; hi < nums.length; hi++) {
+            if (lo == 0 || nums[hi] > nums[lo - 1]) {
+                swap(nums, lo, hi);
+                lo++;
+            }
+        }
+        return lo;
+    }
+    private void swap(int[] nums, int i, int j) {
+        int tmp = nums[i];
+        nums[i] = nums[j];
+        nums[j] = tmp;
+    }
+}
+```
+
+两种思路的差别就是 lo 指在哪里。
+
+```java
+class Solution {
+    public int removeDuplicates(int[] nums) {
+        int lo = 0;
+        for (int hi = 0; hi < nums.length; hi++) {
+            if (nums[hi] > nums[lo]) {
+                lo++;
+                swap(nums, lo, hi);
+            }
+        }
+        return lo + 1;
+    }
+    private void swap(int[] nums, int i, int j) {
+        int tmp = nums[i];
+        nums[i] = nums[j];
+        nums[j] = tmp;
+    }
+}
+```

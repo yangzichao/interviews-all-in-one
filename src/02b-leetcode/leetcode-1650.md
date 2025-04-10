@@ -23,3 +23,18 @@ class Solution {
 
 即 160 https://leetcode.com/problems/intersection-of-two-linked-lists/description/
 非常的awesome
+
+
+```java
+class Solution {
+    public Node lowestCommonAncestor(Node p, Node q) {
+        Node a = p;
+        Node b = q;
+        while (a != b) {
+            a = a == null? q : a.parent;
+            b = b == null? p : b.parent;  
+        }
+        return a;
+    }
+}
+```

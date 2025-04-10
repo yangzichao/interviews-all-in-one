@@ -53,3 +53,28 @@ class Solution {
     }
 }
 ```
+
+
+2025 年已经完全忘了，写的一塌糊涂，看了2023 的笔记才写好的
+
+这个题有一个心得，lower 完全可以假设存在一个 lower - 1 这个值在 nums 的最开始。
+所以lo指针一直到 upper 之前的计算逻辑是一致的。
+
+```java
+class Solution {
+    public List<List<Integer>> findMissingRanges(int[] nums, int lower, int upper) {
+        int lo = lower;
+        List<List<Integer>> ans = new ArrayList<>();
+        for (int num : nums) {
+            if (num - lo > 0) {
+                ans.add(Arrays.asList(new Integer[]{lo, num - 1}));
+            }
+            lo = num + 1;
+        }
+        if (upper - lo >= 0) {
+            ans.add(Arrays.asList(new Integer[]{lo, upper}));
+        }
+        return ans;
+    }
+}
+```

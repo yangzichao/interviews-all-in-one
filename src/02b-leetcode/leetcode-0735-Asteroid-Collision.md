@@ -151,3 +151,43 @@ class Solution {
 }
 ```
 
+
+
+## 2025
+
+这还真是一个合适的考试题
+
+```java
+class Solution {
+    public int[] asteroidCollision(int[] asteroids) {
+        // is this a perfect usecase for stack?
+        Deque<Integer> stack = new ArrayDeque<>();
+        for (int asteroid : asteroids) {
+            if (asteroid > 0) {
+                stack.addLast(asteroid);
+            } else {
+                boolean isGG = false;
+                while (!stack.isEmpty() && stack.peekLast() > 0) {
+                    int curTop = stack.removeLast();
+                    if (curTop + asteroid > 0) {
+                        stack.addLast(curTop);
+                        isGG = true;
+                        break;
+                    } else if (curTop + asteroid < 0) {
+                        continue;
+                    } else {
+                        isGG = true;
+                        break;
+                    }
+                }
+                if (!isGG) stack.addLast(asteroid);
+            }
+        }
+        int[] ans = new int[stack.size()];
+        for (int i = 0; i < ans.length; i++) {
+            ans[i] = stack.removeFirst();
+        }
+        return ans;
+    }
+}
+```
