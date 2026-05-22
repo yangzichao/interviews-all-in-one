@@ -159,3 +159,79 @@ public class ListNode{
 }
 
 ```
+
+
+# 2025 
+
+记录一下如下的翻转方法:
+
+```java
+class Solution {
+    public ListNode reverseList(ListNode head) {
+        ListNode prev = null;
+        ListNode cur = head;
+        while (cur != null) {
+            // 注意 不要更新 next node 的指针 因为一更新就全炸了
+            ListNode next = cur.next;
+            cur.next = prev;
+            prev = cur;
+            cur = next;
+        }
+        return prev;
+    }
+}
+```
+
+
+总结一下，其实有两种
+1. 第一种是3指针，前中后，拉链一样，把需要翻转部分的链表，整个链表原地反转，然后整个头尾一起颠倒。
+1.1 这个好处可能是不需要 dummyhead.
+2. 第二种是2指针，原理是维持一个dummyhead 和 cur, 删掉 cur 后面的节点，然后插入到 dummyhead之后。以此类推。
+
+
+
+方法1的两种写法
+```java
+class Solution {
+    public ListNode reverseList(ListNode head) {
+        if (head == null || head.next == null) return head;
+        ListNode newHead = reverseList(head.next);
+        head.next.next = head;
+        head.next = null;
+        return newHead;
+    }
+}
+
+class Solution {
+    public ListNode reverseList(ListNode head) {
+        ListNode prev = null;
+        ListNode cur = head;
+        while (cur != null) {
+            ListNode tempNext = cur.next;
+            cur.next = prev;
+            prev = cur;
+            cur = tempNext;
+        }
+        return prev;
+    }
+}
+```
+
+
+方法 2 
+
+```java
+class Solution {
+    public ListNode reverseList(ListNode head) {
+        ListNode dummyHead = new ListNode(-1);
+        dummyHead.next = head;
+        while (head != null && head.next != null) {
+            ListNode nextNode = head.next;
+            head.next = nextNode.next;
+            nextNode.next = dummyHead.next;
+            dummyHead.next = nextNode;
+        }
+        return dummyHead.next;
+    }
+}
+```

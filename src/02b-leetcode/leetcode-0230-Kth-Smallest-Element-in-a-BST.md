@@ -51,3 +51,33 @@ class Solution {
     }
 }
 ```
+
+## 2025
+
+```java
+class Solution {
+    public int kthSmallest(TreeNode root, int k) {
+        Deque<TreeNode> stack = new ArrayDeque();
+        stack.push(root);
+        TreeNode cur = root;
+        int counter = k;
+        while (cur != null || !stack.isEmpty()) {
+            while (cur != null) {
+                stack.push(cur);
+                cur = cur.left;
+            }
+            cur = stack.pop();
+            counter -= 1;
+            while (counter == 0) return cur.val;
+            cur = cur.right;
+         }
+         return -1;
+    }
+}
+```
+
+
+Follow up: If the BST is modified often (i.e., we can do insert and delete operations) and you need to find the kth smallest frequently, how would you optimize?
+
+I can save the full in-order sequence so that insert and delete are O(log N), and find kth is O(1);
+好像和官方解答不一样，但是也无所谓了

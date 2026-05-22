@@ -35,3 +35,31 @@ class Solution {
     }
 }
 ```
+
+上面的答案现在 TLE 了 
+
+
+```java
+class Solution {
+    public int longestConsecutive(int[] nums) {
+        if (nums.length < 1) return 0;
+        int longest = 1;
+        Set<Integer> set = new HashSet<>();
+        for (int num : nums) set.add(num);
+
+        for (int num : set) { // 区别在这里 是 iterate set 因为 set去除了重复的元素，所以快。
+            if (!set.contains(num - 1)) {
+                int count = 1;
+                int cur = num;
+                while (set.contains(cur + 1)) {
+                    count++;
+                    cur = cur + 1;
+                }
+                longest = Math.max(longest, count);
+            }
+        }
+        return longest;
+
+    }
+}
+```

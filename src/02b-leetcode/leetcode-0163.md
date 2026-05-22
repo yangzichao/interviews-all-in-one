@@ -78,3 +78,33 @@ class Solution {
     }
 }
 ```
+
+2025 的第二版
+
+```java
+class Solution {
+    public List<List<Integer>> findMissingRanges(int[] nums, int lower, int upper) {
+        // [lower nums upper]
+        List<List<Integer>> ans = new ArrayList<>();
+        // only compare: prev + 1 and cur - 1. prev + 1 <= cur - 1 means we have a missing range
+        int prev = lower - 1;
+        for (int i = 0; i < nums.length; i++) {
+            int cur = nums[i];
+            if (prev + 1 <= cur - 1) {
+                List<Integer> range = new ArrayList<>();
+                range.add(prev + 1);
+                range.add(cur - 1);
+                ans.add(range);
+            }
+            prev = cur;
+        }
+        if (prev + 1 <= upper) {
+            List<Integer> range = new ArrayList<>();
+            range.add(prev + 1);
+            range.add(upper);
+            ans.add(range);
+        }
+        return ans;
+    }
+}
+```

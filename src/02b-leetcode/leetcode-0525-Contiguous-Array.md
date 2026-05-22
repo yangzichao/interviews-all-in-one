@@ -53,7 +53,5 @@ class Solution {
         }
         return maxLength;
     }
-}
-        return maxLength;
-​
+}​
 ```

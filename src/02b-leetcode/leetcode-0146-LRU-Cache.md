@@ -352,3 +352,88 @@ class LRUCache {
  * obj.put(key,value);
  */
 ```
+
+
+
+## 2025 
+注意 Node 里要有 key val 的全部信息。
+
+
+```java
+class LRUCache {
+    class Node {
+        int key;
+        int val;
+        Node prev;
+        Node next;
+        Node(int key, int val) {
+            this.key = key;
+            this.val = val;
+        }
+    }
+    int capacity;
+    Node head;
+    Node tail;
+    Map<Integer, Node> keyToNode;
+
+    public LRUCache(int capacity) {
+        this.keyToNode = new HashMap<>();
+        this.capacity = capacity;
+        this.head = new Node(-1, -1);
+        this.tail = new Node(-1, -1);
+        this.head.next = tail;
+        this.tail.prev = head;
+    }
+    
+    public int get(int key) {
+        // remove from the middle
+        if (!keyToNode.containsKey(key)) return -1;
+        Node node = keyToNode.get(key);
+        refresh(node);
+        return node.val;
+    }
+    
+    public void put(int key, int value) {
+        if (keyToNode.containsKey(key)) {
+            Node node = keyToNode.get(key);
+            node.val = value;
+            refresh(node);
+            return;
+        }
+        Node node = new Node(key, value);
+        keyToNode.put(key, node);
+        insertToHead(node);
+        if (keyToNode.size() > capacity) {
+            Node last = tail.prev;
+            keyToNode.remove(last.key);
+            remove(last);
+        }
+    }
+
+    private void refresh(Node node) {
+        remove(node);
+        insertToHead(node);
+    }
+    private void insertToHead(Node node) {
+        Node next = head.next;
+        head.next = node;
+        next.prev = node;
+        node.prev = head;
+        node.next = next;
+    }
+
+    private void remove(Node node) {
+        Node prev = node.prev;
+        Node next = node.next;
+        prev.next = next;
+        next.prev = prev;
+    }
+}
+
+/**
+ * Your LRUCache object will be instantiated and called as such:
+ * LRUCache obj = new LRUCache(capacity);
+ * int param_1 = obj.get(key);
+ * obj.put(key,value);
+ */
+```

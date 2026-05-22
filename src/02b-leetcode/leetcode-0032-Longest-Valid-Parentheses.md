@@ -1,6 +1,13 @@
 # 032J. Longest Valid Parentheses
 https://leetcode.com/problems/longest-valid-parentheses/
 
+# 前言
+这个题有很多种解法，虽然说那个酷炫的正反扫描很好用，但是我还是推崇使用 stack 的解法。
+
+1. 单调栈解法，这个解法只记录上一个没匹配好的 index 位置。
+2. 
+
+
 <pre>
 在一段合法的子数组中，左右括号数目首先要相同，并且，
 左括号数量在任何时候不得少于右括号。
@@ -239,3 +246,67 @@ class Solution {
     }
 }
 ```
+
+
+## 2025 
+以上想法的 2025 版本
+
+```java
+class Solution {
+    public int longestValidParentheses(String s) {
+        int longest = valid(s, '(');
+        longest = Math.max(longest, valid(new StringBuilder(s).reverse().toString(), ')'));
+        return longest;
+    }
+
+    private int valid(String s, char creteria) {
+        int longest = 0;
+        int net = 0;
+        int total = 0;
+        for (char c : s.toCharArray()) {
+            net += c == creteria ? 1 : -1;
+            total += 1;
+            if (net == 0) {
+                longest = Math.max(longest, total);
+            }
+            if (net < 0) {
+                net = 0;
+                total = 0;
+            }
+        }
+        return longest;
+    }
+}
+```
+
+栈解决的
+
+```java
+class Solution {
+    public int longestValidParentheses(String s) {
+        Deque<Integer> stack = new ArrayDeque<>(); 
+        // stack 底储存的是 last unmatched index，之后都是 unmatched 左括号index
+        stack.push(-1);
+        int longest = 0;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '(') {
+                stack.push(i);
+            } else {
+                stack.pop(); // 如果 match 就是取出左括号，不match这里就是更新了栈底
+                if (stack.isEmpty()) {
+                    stack.push(i);
+                } else {
+                    int length = i - stack.peek();
+                    longest = Math.max(longest, length);
+                }
+            }
+        }
+        return longest;
+    }
+}
+```
+
+注意这个栈的思路 栈底永远存且仅存一个不match的 index。
+不 match 的 index 要么是 -1 对应dummyhead, 要么存的是一个右括号的index. 
+最关键的是每次出现无法匹配的右括号，都用下标把“断点”记录下来，保证后续长度计算不会出错。

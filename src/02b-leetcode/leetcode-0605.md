@@ -1,7 +1,7 @@
 
 我觉得这是一个蛮不错的 easy 题。
 
-
+思路是贪心法吗？
 
 ```java
 class Solution {

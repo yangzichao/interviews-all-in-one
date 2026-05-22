@@ -48,7 +48,7 @@ class Solution {
             }
             p = p.next;
         }
-        newNode.next = p.next;
+        newNode.next = p.next; 
         p.next = newNode;
         return head;
     }

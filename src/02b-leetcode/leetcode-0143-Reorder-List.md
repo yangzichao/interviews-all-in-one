@@ -46,3 +46,53 @@ class Solution {
     }
 }
 ```
+
+
+
+
+2025 重排版：
+```java
+class Solution {
+    public void reorderList(ListNode head) {        
+        ListNode prev = null;             
+        ListNode slow = head;
+        ListNode fast = head;
+        while (fast != null && fast.next != null) {
+            prev = slow;
+            slow = slow.next;
+            fast = fast.next.next;
+        }
+        if (fast != null) {
+            prev = slow;
+            slow = slow.next;
+        }
+
+        if (prev != null) {
+           prev.next = null;
+        }
+
+        slow = reverse(slow);
+
+        while (slow != null) {
+            ListNode tempNext = head.next;
+            head.next = slow;
+            slow = slow.next;
+            head = head.next;
+            head.next = tempNext;
+            head = head.next;
+        }
+    }
+
+    public static ListNode reverse(ListNode head) {
+        ListNode prev = null;
+        ListNode curr = head;
+        while (curr != null) {
+            ListNode nextTemp = curr.next;
+            curr.next = prev;
+            prev = curr;
+            curr = nextTemp;
+        }
+        return prev;
+    }
+}
+```

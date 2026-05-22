@@ -3,7 +3,7 @@ https://leetcode.com/problems/convert-sorted-list-to-binary-search-tree/
 
 
 ## Method 1
-[复制108](leetCode-108-Convert-Sorted-Array-to-Binary-Search-Tree.md)
+[复制108](leetCode-0108-Convert-Sorted-Array-to-Binary-Search-Tree.md)
 先把LinkedList都加到数组里，再做108一样的。
 ## Method 2 模拟 inorder
 真的好机智

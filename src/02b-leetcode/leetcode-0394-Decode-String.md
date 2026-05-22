@@ -120,3 +120,43 @@ class Solution {
     }
 }
 ```
+
+
+
+## 2025 
+
+这个题写的好，好就好在比5年前提升了很多。
+```java
+class Solution {
+    public String decodeString(String s) {
+        Queue<Character> queue = new ArrayDeque<>();
+        for (char c : s.toCharArray()) {
+            queue.offer(c);
+        }
+        return decodeHelper(queue);
+    }
+
+    private String decodeHelper(Queue<Character> queue) {
+        StringBuilder sb = new StringBuilder();
+        int repeat = 0;
+        while (!queue.isEmpty()) {
+            char cur = queue.poll();
+            if (cur == ']') break;
+            if (cur == '[') {
+                String str = decodeHelper(queue);
+                while (repeat > 0) {
+                    repeat--;
+                    sb.append(str);
+                }
+            }
+            if (Character.isDigit(cur)) {
+                repeat = repeat * 10 + (int) (cur - '0');
+            }
+            if (Character.isAlphabetic(cur)) {
+                sb.append(cur);
+            }
+        }
+        return sb.toString();
+    }
+}
+```

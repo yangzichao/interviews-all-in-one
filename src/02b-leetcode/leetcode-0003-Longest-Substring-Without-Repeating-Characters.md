@@ -2,6 +2,39 @@
 
 https://leetcode.com/problems/longest-substring-without-repeating-characters/
 
+
+# 总结 
+
+这个题有两个思路，
+1. 直觉就是简单的用一个Set做滑窗。
+2. 滑窗但是优化
+
+请使用方法2
+
+```java
+class Solution {
+    public int lengthOfLongestSubstring(String s) {
+        Map<Character, Integer> charToCurrKnownRightmostIndex = new HashMap<>();
+        int left = 0;
+        int maxLength = 0;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (charToCurrKnownRightmostIndex.containsKey(c)) {
+                int currKnownRightmostIndex = charToCurrKnownRightmostIndex.get(c);
+                if (currKnownRightmostIndex >= left) {
+                    left = currKnownRightmostIndex + 1;
+                }
+            }
+            charToCurrKnownRightmostIndex.put(c, i);
+            int currWindowWidth = i - left + 1;
+            maxLength = Math.max(maxLength, currWindowWidth);
+        }
+        return maxLength;
+    }
+}
+```
+
+
 ## Method: Sliding Window almost best
 
 原理是用双指针加 HashSet 保存元素。i j 一慢一快。

@@ -169,6 +169,10 @@ class Solution {
 
 我太牛了 竟然自己写出了和双扫不一样的解法，这个时间复杂度比leetcode官方解法还要好一点。
 
+思路：
+我们从左往右扫一次，可以立刻去除多余的右括号，同时我们记录下所有的左括号的index。
+扫完我们可以直接移除多余的左括号。
+
 ```java
 class Solution {
     public String minRemoveToMakeValid(String s) {

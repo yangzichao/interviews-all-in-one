@@ -52,3 +52,29 @@ class Solution {
 }
 
 ```
+
+
+可能下面的写法比较好理解。
+
+
+```java
+class Solution {
+    public boolean checkSubarraySum(int[] nums, int k) {
+        int N = nums.length;
+        int[] dp = new int[N + 1];
+        for (int i = 1; i <= nums.length; i++) {
+            dp[i] = ( nums[i - 1] + dp[i - 1] ) % k;
+        }
+        
+        Map<Integer, Integer> map = new HashMap<>();
+        for (int i = 0; i < dp.length; i++) {
+            if (!map.containsKey(dp[i])) {
+                map.put(dp[i], i);
+            } else {
+                if (i - map.get(dp[i]) > 1) return true;
+            }
+        }
+        return false;
+    }
+}
+```

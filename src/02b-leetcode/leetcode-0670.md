@@ -1,5 +1,5 @@
 
-
+注意，这个题和 next permutation 根本不一样，我们必须上来就知道右侧最大值。
 
 ```java
 class Solution {

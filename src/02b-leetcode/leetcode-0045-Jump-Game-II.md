@@ -56,6 +56,30 @@ class Solution {
     }
 }
 ​
+2025 年写了一个基于 bfs 原则的代码
+
+这个题的思路是这样的 你可以想象如果我们储存一个数组 然后数组上的数字都是需要多少步到这一个位置 那么这个数组的形态肯定是就是单调递增的 它肯定是类似于0多少个1 然后多少个2 然后多少个连续多少个3 然后连续多少个4这个样子 那么我们就可以想象 这个BFS相当于就是我们每一层都是同样步数到达的 index.
+
+```java
+class Solution {
+    public int jump(int[] nums) {
+        if (nums.length == 0) return 0;
+        int N = nums.length;
+        int steps = 0;
+        int curFurtherest = 0;
+        int lo = 0;
+        while (curFurtherest < N - 1) {
+            int hi = curFurtherest;
+            while (lo <= hi) {
+                curFurtherest = Math.max(curFurtherest, lo + nums[lo]);
+                lo++;
+            }
+            steps++;
+        }
+        return steps;
+    }
+}
+```
 ​
 /**
 下面的是一个 O(N^2)的解法，我觉得还挺好的，然而太慢

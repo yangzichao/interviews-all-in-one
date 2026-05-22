@@ -128,3 +128,78 @@ class Solution {
 
 
 ```
+
+
+
+## 2025
+
+这个题在meta电面遇到了
+改成了 merge k arrays. 这样维护 N 个 array 的指针就变成了一个难题
+我写了一个类似于如下的解法
+
+```java
+// input is 2d array
+// int[], 0: value; 1: array number; 2: array pointer
+PriorityQueue<int[]> minHeap = new PriorityQueue<>((a, b) -> a[0] - b[0]);
+
+for (int i = 0; i < arrays.length; i++) {
+    if (arrays[i].length == 0) continue;
+    minHeap.offer(new int[]{arrays[i][0], i, 0});
+}
+
+List<Integer> ans = new ArrayList<>();
+while (!minHeap.isEmpty()) {
+    int[] curInfo = minHeap.poll();
+    int curVal = curInfo[0];
+    int curList = curInfo[1];
+    int curListPtr = curInfo[2];
+
+    // follow up, remove duplicates here
+    ans.add(curVal);
+
+    curListPtr++;
+    if (curListPtr < curList.length) {
+        minHeap.offer(new int[]{curList[curListPtr], curList, curListPtr});
+    }
+}
+
+return ans;
+```
+
+
+以下的 heap 解法是针对原题写的
+
+
+```java
+/**
+ * Definition for singly-linked list.
+ * public class ListNode {
+ *     int val;
+ *     ListNode next;
+ *     ListNode() {}
+ *     ListNode(int val) { this.val = val; }
+ *     ListNode(int val, ListNode next) { this.val = val; this.next = next; }
+ * }
+ */
+class Solution {
+    public ListNode mergeKLists(ListNode[] lists) {
+        ListNode dummyHead = new ListNode(-1);
+        ListNode cur = dummyHead;
+        PriorityQueue<ListNode> pq = new PriorityQueue<>((a, b) -> a.val - b.val);
+        for (ListNode list : lists) {
+            if (list == null) continue;
+            pq.offer(list);
+        }
+        while (!pq.isEmpty()) {
+            ListNode list = pq.poll();
+            cur.next = list;
+            cur = cur.next;
+            list = list.next;
+            if (list != null) {
+                pq.offer(list);
+            }
+        }
+        return dummyHead.next;
+    }
+}
+```

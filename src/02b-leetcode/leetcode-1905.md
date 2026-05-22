@@ -46,3 +46,82 @@ class Solution {
     }
 }
 ```
+
+
+
+## 2025
+我写了这么一堆
+
+```java
+class Solution {
+    public int countSubIslands(int[][] grid1, int[][] grid2) {
+        int[][] DIRECTIONS = new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        int M = grid1.length;
+        int N = grid1[0].length;
+        int islandLabel = 1;
+
+        for (int i = 0; i < M; i++) {
+            for (int j = 0; j < N; j++) {
+                if (grid1[i][j] == 0 || grid1[i][j] > 1) continue;
+                islandLabel++;
+                Deque<int[]> queue = new ArrayDeque<>();
+                queue.offer(new int[]{i, j});
+                grid1[i][j] = islandLabel;
+                while (!queue.isEmpty()) {
+                    int size = queue.size();
+                    while (size > 0) {
+                        size--;
+                        int[] cur = queue.poll();
+                        int curRow = cur[0];
+                        int curCol = cur[1];
+                        for (int[] direction : DIRECTIONS) {
+                            int nextRow = curRow + direction[0];
+                            int nextCol = curCol + direction[1];
+                            if (nextRow < 0 || nextCol < 0 || nextRow >= M || nextCol >= N) continue;
+                            if (grid1[nextRow][nextCol] == 0 || grid1[nextRow][nextCol] > 1) continue;
+                            grid1[nextRow][nextCol] = islandLabel;
+                            queue.offer(new int[]{nextRow, nextCol});
+                        }
+                    }
+                }
+            }
+        }
+
+        boolean[][] marked = new boolean[M][N];
+        int subIsland = 0;
+        for (int i = 0; i < M; i++) {
+            for (int j = 0; j < N; j++) {
+                if (grid2[i][j] == 0 || marked[i][j]) continue;
+                int label = grid1[i][j];
+                boolean isSubIsland = true;
+                if (label == 0) isSubIsland = false;
+                Deque<int[]> queue = new ArrayDeque<>();
+                queue.offer(new int[]{i, j});
+                marked[i][j] = true;
+                while (!queue.isEmpty()) {
+                    int size = queue.size();
+                    while (size > 0) {
+                        size--;
+                        int[] cur = queue.poll();
+                        int curRow = cur[0];
+                        int curCol = cur[1];
+                        for (int[] direction : DIRECTIONS) {
+                            int nextRow = curRow + direction[0];
+                            int nextCol = curCol + direction[1];
+                            if (nextRow < 0 || nextCol < 0 || nextRow >= M || nextCol >= N) continue;
+                            if (grid2[nextRow][nextCol] == 0 || marked[nextRow][nextCol]) continue;
+                            marked[nextRow][nextCol] = true;
+                            if (grid1[nextRow][nextCol] != label) {
+                                isSubIsland = false;
+                            }
+                            queue.offer(new int[]{nextRow, nextCol});
+                        }
+                    }
+                }
+                if (isSubIsland) subIsland++;
+            }
+        }
+        return subIsland;
+    }
+}
+```

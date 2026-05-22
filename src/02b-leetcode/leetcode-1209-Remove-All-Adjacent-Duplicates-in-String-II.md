@@ -38,3 +38,43 @@ class Solution {
 ```
 
 可以只记录频率的其实。
+
+
+
+## 2025
+
+```java
+class Solution {
+    class Pair {
+        char c;
+        int count;
+        Pair(char c, int count) {
+            this.c = c;
+            this.count = count;
+        }
+    }
+    public String removeDuplicates(String s, int k) {
+        Deque<Pair> stack = new ArrayDeque<>();
+        for (char c : s.toCharArray()) {
+            if (stack.isEmpty() || stack.peek().c != c) {
+                stack.push(new Pair(c, 1));
+            } else {
+                Pair pair = stack.pop();
+                if (pair.count + 1 >= k) {
+                    continue;
+                }
+                pair.count += 1;
+                stack.push(pair);
+            }
+        }
+        StringBuilder sb = new StringBuilder();
+        while (!stack.isEmpty()) {
+            Pair pair = stack.pop();
+            for (int i = 0; i < pair.count; i++) {
+                sb.append(pair.c);
+            }
+        }
+        return sb.reverse().toString();
+    }
+}
+```
