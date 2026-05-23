@@ -91,6 +91,51 @@ class Solution {
 }
 ```
 
+## BFS v2: 方向数组 + 独立 marked + ArrayDeque
+
+最近重写的一版 BFS，相对上面的 BFS 有几点改进：
+
+- **不修改入参 `grid`**：用单独的 `boolean[][] marked` 记录访问状态，保留输入。
+- **方向数组用 `{1, 0, -1, 0, 1}` 这个 trick**：相邻两个元素 `(directions[k], directions[k+1])` 正好构成四个方向 `(1,0), (0,-1), (-1,0), (0,1)`，比 `int[][] dirs = {{...}}` 更省空间。
+- **`ArrayDeque` 替代 `LinkedList`**：更快，cache 更友好。
+- **队列里存 `int[]{row, col}`**：避免 `id = row*N + col` 的编解码，可读性更好（代价是每个节点多一点对象开销）。
+- **入队时立即 `marked = true`**：和上面的 BFS 一样，避免重复入队。
+
+```java
+class Solution {
+    int[] directions = new int[]{1, 0, -1, 0, 1};
+    public int numIslands(char[][] grid) {
+        int M = grid.length;
+        int N = grid[0].length;
+        boolean[][] marked = new boolean[M][N];
+        int total = 0;
+        for (int i = 0; i < M; i++) {
+            for (int j = 0; j < N; j++) {
+                if (marked[i][j] || grid[i][j] == '0') continue;
+                marked[i][j] = true;
+                total += 1;
+                ArrayDeque<int[]> queue = new ArrayDeque<>();
+                queue.offer(new int[]{i, j});
+                while (!queue.isEmpty()) {
+                    int[] cur = queue.poll();
+                    int curRow = cur[0];
+                    int curCol = cur[1];
+                    for (int k = 0; k < 4; k++) {
+                        int nextRow = curRow + directions[k];
+                        int nextCol = curCol + directions[k + 1];
+                        if (nextRow < 0 || nextCol < 0 || nextRow >= M || nextCol >= N) continue;
+                        if (grid[nextRow][nextCol] == '0' || marked[nextRow][nextCol]) continue;
+                        marked[nextRow][nextCol] = true;
+                        queue.offer(new int[]{nextRow, nextCol});
+                    }
+                }
+            }
+        }
+        return total;
+    }
+}
+```
+
 ## Union Find
 
 为了学习 2D Union Find.
