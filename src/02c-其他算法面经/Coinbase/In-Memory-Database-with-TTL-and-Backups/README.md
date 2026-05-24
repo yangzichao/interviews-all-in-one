@@ -117,3 +117,19 @@ Passed=1  Failed=0  Skipped=3
 ```
 
 骨架在 [InMemoryDatabase.java](InMemoryDatabase.java)，测试在 [InMemoryDatabaseTest.java](InMemoryDatabaseTest.java)。每个 Part 的方法对应骨架里的一段，照着填就行。
+
+---
+
+## 代码结构（练习用，不是产品代码）
+
+每个 Part 在 `InMemoryDatabase.java` 里**完全独立**——自己的 `EntryPartN` record、自己的 `mapPartN` 字段、自己的 `putPartN` / `getPartN` / `scanPartN` 方法。
+
+```
+PART 1: putPart1 / getPart1                              [✓ done]
+PART 2: putPart2 / getPart2 / scanPart2                  [✓ done]
+PART 3: putPart3 (×2 重载) / getPart3 / scanPart3         [⚠ 你来写]
+PART 4: putPart4 / getPart4 / scanPart4 / backupPart4
+        / restorePart4                                   [⚠ Part 3 done 后展开]
+```
+
+**为什么这样切？** 真实面试是渐进的——做完 Part 1 才会让你看 Part 2，期间要演化 Entry 的 schema。在**练习**时如果你为了 Part 3 改了 `Entry`，可能把 Part 1+2 弄坏；这种切片结构让你能专注当前 Part 而不破坏已完成的部分。每个 Part 的代码也保留了演化轨迹，对比 `EntryPart2` 和 `EntryPart3` 可以看 schema 怎么变。
