@@ -54,10 +54,10 @@ public class InMemoryDatabaseTest {
     static void testPart1() {
         InMemoryDatabase db = new InMemoryDatabase();
         db.putPart1("a", "x", 1);
-        assertEq("x", db.getPart1("a", 2), "basic put/get");
+        assertEq(Optional.of("x"), db.getPart1("a", 2), "basic put/get");
         db.putPart1("a", "y", 3);
-        assertEq("y", db.getPart1("a", 4), "overwrite");
-        assertEq(null, db.getPart1("b", 5), "missing key returns null");
+        assertEq(Optional.of("y"), db.getPart1("a", 4), "overwrite");
+        assertEq(Optional.empty(), db.getPart1("b", 5), "missing key returns empty");
     }
 
     // ===== Part 2 =======================================================
@@ -77,20 +77,20 @@ public class InMemoryDatabaseTest {
     static void testPart3() {
         InMemoryDatabase db = new InMemoryDatabase();
         db.putPart3("a", "x", 1, 5);  // valid [1, 6)
-        assertEq("x", db.getPart3("a", 1), "ttl start boundary");
-        assertEq("x", db.getPart3("a", 5), "inside ttl");
-        assertEq(null, db.getPart3("a", 6), "ttl end boundary is half-open");
+        assertEq(Optional.of("x"), db.getPart3("a", 1), "ttl start boundary");
+        assertEq(Optional.of("x"), db.getPart3("a", 5), "inside ttl");
+        assertEq(Optional.empty(), db.getPart3("a", 6), "ttl end boundary is half-open");
 
         db.putPart3("b", "y", 10, 0);
-        assertEq(null, db.getPart3("b", 10), "ttl=0 immediately expired");
+        assertEq(Optional.empty(), db.getPart3("b", 10), "ttl=0 immediately expired");
 
         db.putPart3("c", "z", 1);  // 无 ttl 重载 — 永久
-        assertEq("z", db.getPart3("c", 1_000_000), "no ttl = forever");
+        assertEq(Optional.of("z"), db.getPart3("c", 1_000_000), "no ttl = forever");
 
         db.putPart3("d", "old", 1, 100);  // [1, 101)
         db.putPart3("d", "new", 2, 1);    // [2, 3) — 新 ttl 替换旧
-        assertEq("new", db.getPart3("d", 2), "overwrite: new value visible");
-        assertEq(null, db.getPart3("d", 3), "overwrite: new ttl applies, not old");
+        assertEq(Optional.of("new"), db.getPart3("d", 2), "overwrite: new value visible");
+        assertEq(Optional.empty(), db.getPart3("d", 3), "overwrite: new ttl applies, not old");
 
         InMemoryDatabase db2 = new InMemoryDatabase();
         db2.putPart3("p", "1", 1, 2);   // [1, 3) — expired by t=5
@@ -108,14 +108,14 @@ public class InMemoryDatabaseTest {
         assertEq(1, bid, "first backup_id is 1");
         db.putPart4("temp", "overwritten", 100);  // mutate after backup
         db.restorePart4(bid, 20);                 // new expire = 20 + 6 = 26
-        assertEq("v", db.getPart4("temp", 25), "restored value with remaining ttl");
-        assertEq(null, db.getPart4("temp", 26), "expires at restore_time + remaining_ttl (half-open)");
+        assertEq(Optional.of("v"), db.getPart4("temp", 25), "restored value with remaining ttl");
+        assertEq(Optional.empty(), db.getPart4("temp", 26), "expires at restore_time + remaining_ttl (half-open)");
 
         InMemoryDatabase db2 = new InMemoryDatabase();
         db2.putPart4("p", "forever", 1);
         db2.backupPart4(5);
         db2.restorePart4(1, 100);
-        assertEq("forever", db2.getPart4("p", 1_000_000_000), "no-ttl entry survives restore");
+        assertEq(Optional.of("forever"), db2.getPart4("p", 1_000_000_000), "no-ttl entry survives restore");
 
         InMemoryDatabase db3 = new InMemoryDatabase();
         db3.putPart4("a", "1", 1);
@@ -127,7 +127,7 @@ public class InMemoryDatabaseTest {
         db4.putPart4("keep", "here", 1);      // forever
         int bid4 = db4.backupPart4(10);
         db4.restorePart4(bid4, 100);
-        assertEq(null, db4.getPart4("short", 100), "expired entry not in backup");
-        assertEq("here", db4.getPart4("keep", 100), "live entry survives backup/restore");
+        assertEq(Optional.empty(), db4.getPart4("short", 100), "expired entry not in backup");
+        assertEq(Optional.of("here"), db4.getPart4("keep", 100), "live entry survives backup/restore");
     }
 }
