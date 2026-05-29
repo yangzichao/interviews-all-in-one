@@ -1,12 +1,12 @@
-# 00 — Concurrency Basics (教学型 drill)
+# 🐣 00 — Concurrency Basics (基础篇：手撕并发原语)
 
-> **这一节不是题, 是把 JUC (java.util.concurrent) 的常用 API 亲手敲一遍**。
-> 每个 lesson 都很小 (15-30 行), 聚焦**一个原语**, 目的是让你: ①记住接口名 ②记住术语 ③体会"这个东西到底解决什么问题"。
-> 做完这 9 个 lesson 再去碰 01-06 的真题, 会舒服很多。
+> **这不是冷冰冰的考试题，这是一场带你亲手把 JUC (java.util.concurrent) 核心 API 敲进肌肉记忆的 Crash Course！**
+> 每个 Lesson 都极其短小精悍 (约 15-30 行代码)，只聚焦**一个**并发原语。完成它们，你将轻松达成三个成就：① 记住核心 API 名称；② 掌握面试常考英文术语；③ 深刻体会“这玩意儿到底解决了什么痛点”。
+> **磨刀不误砍柴工，通关这 9 个小节后再去做 01-06 的真题，你会感觉无比丝滑。**
 
 ---
 
-## 怎么跑
+## 🏃 怎么运行？
 
 ```bash
 cd Lesson01-Volatile
@@ -68,213 +68,122 @@ stub 里抛 `UnsupportedOperationException`, 测试会输出 `SKIPPED`。你把 
 
 # 课程内容
 
-## Lesson 01 — `volatile` (内存可见性)
+## 🛠️ Lesson 01 — `volatile` (打破线程间的“信息壁垒”)
 
-**问题**: 一个线程 `running = true` 在自旋, 另一个线程 `running = false`, 第一个线程**可能永远停不下来** —— 因为编译器/CPU cache 让它一直读旧值。
+**❓ 现实痛点**：想象两个人在不同房间办公。线程 A 在疯狂死循环检查 `running` 变量是不是为 `false` 以便下班，而线程 B 其实早已把 `running` 改成了 `false`。结果呢？线程 A 根本看不到！因为它一直在读自己 CPU 缓存里的“旧账本”，导致程序永远无法停止。这就是典型的**内存可见性 (Visibility)** 故障。
 
-**解决**: 给 `running` 加 `volatile`。每次读必须从主存读, 每次写立刻刷主存。
+**💡 武器库**：给 `running` 加上 `volatile` 关键字。
 
-**术语**:
-- `volatile`: 保证**可见性**和**有序性** (禁止某些重排), 但**不保证原子性** (`volatile int x; x++` 仍然不是 atomic)
-- visibility, stale read, memory barrier, JMM happens-before
+**🎯 它的作用**：它像是一个大喇叭，强制要求所有线程每次读这个变量时，都必须去公共主存看最新值；每次改写时，必须立刻广播回主存。
+> ⚠️ **新手避坑**：`volatile` **绝对不能**保证操作的原子性！如果你写 `volatile int x; x++;` 在多线程下依然会发生惨烈的数据覆盖。
 
-**Drill**: 实现 `Lesson01`:
-- `volatile boolean running`
-- `long ticks` (普通 long, 只在 worker 线程里写)
-- `Thread worker`
-- `start()`: 启动 worker, 它 `while (running) { ticks++; }`
-- `stop()`: 设 `running = false`, `worker.join()`
-- `ticks()`: 返回 ticks
-
-**观察**: 把 `volatile` 去掉再跑, 在某些 JIT 优化下测试会卡住 → 这就是 visibility 问题。
+**你的任务**：实现一个可控制启停的 Worker。写对之后，**请试着把 `volatile` 删掉再跑一次测试**，亲眼看看你的程序是如何因为读到“脏数据”而彻底死锁卡住的。
 
 ---
 
-## Lesson 02 — `synchronized` (互斥锁)
+## 🛠️ Lesson 02 — `synchronized` (最经典的独木桥)
 
-**问题**: `i++` 不是原子的 (它是 load → add → store 三步). 两个线程一起 ++ 会丢更新。
+**❓ 现实痛点**：`count++` 看起来简单，但在 CPU 眼里是三步（把数字拿出来 -> 加 1 -> 写回去）。如果两个线程同时拿到了 `100`，分别加一后写回去，结果变成了 `101`，我们凭空丢失了一次增加。这就是大名鼎鼎的**丢失更新 (Lost Update)** 漏洞。
 
-**解决**: 用 `synchronized` 关键字把这三步包成一个原子操作。
+**💡 武器库**：在方法前加上 `synchronized` 关键字。
 
-**术语**:
-- `synchronized`: Java 的内置 (intrinsic / monitor) 锁
-- monitor, mutex, lock object
-- 加在方法上 = 锁 `this` (静态方法锁 Class 对象); 加在 block 上要显式指定锁对象
-- **不允许**: 用 String literal 或 Integer 装箱对象做锁 (会共享, 招意外冲突)
+**🎯 它的作用**：把包裹的代码变成一座“独木桥”。同一个时刻，绝对只允许一个线程进去执行操作，其他线程必须在外面乖乖排队（阻塞）。这是 Java 的内置锁，简单粗暴。
+> ⚠️ **新手避坑**：绝对不要用 `String` 常量或者 `Integer` 装箱对象来作为锁对象，它们在 JVM 里是共享的，会导致本不想干的线程互相堵死。
 
-**Drill**: 实现 `Lesson02`:
-- `private long count;` (注意: **不**用 volatile, 不用 Atomic)
-- `synchronized void increment()`: count++
-- `synchronized long get()`: 返回 count
-- 测试: 8 个线程 × 10000 次 increment, 期望 80000
-
-**观察**: 把 `synchronized` 去掉, 测试会得到一个 < 80000 的数 (race lost update)。
+**你的任务**：实现一个纯靠 `synchronized` 保护的计数器。观察如果不加锁，最后累加的数字为什么总是达不到期望值。
 
 ---
 
-## Lesson 03 — `AtomicLong` / CAS (无锁原子)
+## 🛠️ Lesson 03 — `AtomicLong` / CAS (无锁的高级魔法)
 
-**问题**: synchronized 在高竞争下会让线程互相阻塞, 上下文切换很贵。
+**❓ 现实痛点**：`synchronized` 虽然安全，但在极高并发下，几百个线程互相争抢、阻塞、唤醒，**上下文切换的开销**大得离谱，系统会被拖得很慢。
 
-**解决**: 用 CPU 的 CAS 指令做无锁更新。`AtomicLong.incrementAndGet()` 内部就是 `compareAndSet` 循环。
+**💡 武器库**：用 JUC 提供的 `AtomicLong` 类，以及底层的 **CAS (Compare-And-Swap)** 技术。
 
-**术语**:
-- CAS = compare-and-swap, 硬件原子指令: "if memory == expected then memory = new"
-- lock-free (无锁), wait-free (无等待, 更强)
-- ABA 问题: 值从 A 变 B 又变 A, CAS 看不出来 (用 `AtomicStampedReference` 解决)
-- retry loop: CAS 失败就重试
+**🎯 它的作用**：无锁 (Lock-free) 编程的核心。它的思想是：“我不上锁了。我改数据的时候，先看一眼内存里的值是不是我刚才看到的旧值，如果是，我就改；如果被人捷足先登了，我不气馁，在死循环里重试 (Retry Loop)”。
 
-**Drill**: 实现 `Lesson03`:
-- `AtomicLong count` 和 `AtomicLong max`
-- `increment()`: 用 `count.incrementAndGet()`
-- `get()`: 返回 count
-- `updateMax(long candidate)`: 用 `max.compareAndSet(old, candidate)` 的 retry loop, 只在 candidate > 当前 max 时更新
-- `max()`: 返回 max
-- 测试: 16 线程并发 updateMax, 最后 max 应该等于所有 candidate 的最大值
-
-**观察**: 这是手写 CAS retry loop 的经典模式, 记住这个 pattern。
+**你的任务**：不用任何锁，仅使用 `compareAndSet` 手写一个 CAS 重试循环，来维护全局的最大值。这是并发面试里极高频的一道手撕题，务必把这个 Pattern 刻进骨子里。
 
 ---
 
-## Lesson 04 — `ConcurrentHashMap` (复合原子操作)
+## 🛠️ Lesson 04 — `ConcurrentHashMap` (绝不止于线程安全)
 
-**问题**: `if (!map.containsKey(k)) map.put(k, newValue())` 不是原子的。两个线程同时进来都会 put 一次, 后写的覆盖先写的, 而且 `newValue()` 可能被调两次 (浪费/副作用)。
+**❓ 现实痛点**：你用了一个线程安全的 Map，并且写下这样的代码：`if (!map.containsKey(k)) { map.put(k, newObject); }`。**大错特错！** 两个线程可能同时判断 `k` 不存在，然后同时创建了 `newObject` 并写入，你的对象被覆盖了。这是初级程序员最爱踩的 **Check-then-act** 竞态陷阱。
 
-**解决**: `ConcurrentHashMap.computeIfAbsent(k, lambda)` 是**单一原子操作**, 整张表针对这个 key 上锁, lambda 至多被调一次。
+**💡 武器库**：`ConcurrentHashMap` 提供的“复合原子操作” API，比如 `computeIfAbsent`。
 
-**术语**:
-- `ConcurrentHashMap` (CHM): 分段锁 / per-bin 锁, 比 `Collections.synchronizedMap` 快得多
-- check-then-act race: "先查再写"的经典 bug 模式
-- compound atomic operation: 复合原子操作, JDK 给你打包好的 (`computeIfAbsent`, `merge`, `putIfAbsent`)
-- `merge(k, v, mergeFn)`: 不存在就放 v, 存在就 `mergeFn.apply(oldV, v)`
+**🎯 它的作用**：它能在底层精准地给这个 Key 所在的桶加锁，保证“如果不存在就创建”这两个动作一气呵成，`newObject` 绝对只会被初始化一次。
 
-**Drill**: 实现 `Lesson04`:
-- `ConcurrentHashMap<String, AtomicLong> counts`
-- `record(String key)`: 用 `computeIfAbsent` 拿到 (或新建) `AtomicLong`, 然后 `.incrementAndGet()`. (或者: 用 `merge`, 把 Long 当 value)
-- `count(String key)`: 返回当前计数 (key 不存在返回 0)
-- `getOrCreate(String key)`: 用 `computeIfAbsent` 返回一个 per-key 的 `Object`, **同一 key 必须返回同一个实例**
-- 测试: 32 线程并发 record 同一 key, 总数必须精确
-
-**观察**: 如果你用 `if (!containsKey) put`, 在 `getOrCreate` 的测试里**会**看到两次不同的实例。
+**你的任务**：实现一个严谨的对象工厂。如果你不信邪，依然用了 `if (!containsKey)` 来写，测试用例会立刻用红色的报错无情地拆穿你。
 
 ---
 
-## Lesson 05 — `ReentrantLock` + `Condition`
+## 🛠️ Lesson 05 — `ReentrantLock` (高级锁玩家的标配)
 
-**问题**: `synchronized` 不能 tryLock (要么拿到要么死等), 不能中断, 不能选公平性。
+**❓ 现实痛点**：`synchronized` 太死板了。如果拿不到锁，线程就只能死等下去；你没法设置“等 5 秒钟拿不到我就放弃”，也没法控制让排队最久的线程先拿到锁。
 
-**解决**: `ReentrantLock` 是 `synchronized` 的可控版本。配合 `Condition` 实现 "等某个条件" 的等待/唤醒。
+**💡 武器库**：JUC 的 `ReentrantLock`（可重入显式锁）。
 
-**术语**:
-- explicit lock (显式锁) vs intrinsic lock (内置锁)
-- reentrant: 同一线程可以重复 `lock()`, 配对的 `unlock()` 次数要相等
-- fairness: 构造 `new ReentrantLock(true)` 是公平锁, FIFO, 但慢一点
-- `tryLock()` / `tryLock(timeout)`: 拿不到就放弃 / 等一段时间放弃
-- **must use try-finally**: `lock.lock(); try { ... } finally { lock.unlock(); }` —— 这是面试必背 idiom
-- `Condition.await() / signal() / signalAll()`: 对应 `Object.wait() / notify() / notifyAll()`, 但可以一个锁挂多个 Condition
+**🎯 它的作用**：它是 `synchronized` 的威力加强版。它支持 `tryLock()` 超时放弃，支持公平锁，还能配合 `Condition` 实现更精准的线程唤醒。
+> ⚠️ **面试必背规矩**：显式锁必须手动释放，所以你**永远、永远**要把 `lock.unlock()` 写在 `finally` 块里！
 
-**Drill**: 实现 `Lesson05`:
-- `ReentrantLock lock`
-- `long count`
-- `increment()`: 用 try-finally idiom 包住 count++
-- `get()`: 同上
-- `boolean tryIncrement(long timeoutMillis)`: 用 `lock.tryLock(timeoutMillis, MILLISECONDS)`, 拿不到返回 false, 拿到就 count++ 并返回 true
-- 测试: 16 线程并发 increment + 一个线程一直占着锁, tryIncrement(10ms) 应该绝大多数 false
+**你的任务**：实现带“超时放弃”功能的 `tryIncrement`，体验一下并发抢锁抢不到时，优雅退出的快感。
 
 ---
 
-## Lesson 06 — `BlockingQueue` (producer-consumer)
+## 🛠️ Lesson 06 — `BlockingQueue` (生产者与消费者的完美桥梁)
 
-**问题**: 生产者快, 消费者慢, 需要一个**有上限**的中间缓冲, 且生产者满了要**自动减速** (不能 OOM)。
+**❓ 现实痛点**：上游系统生产数据的速度极快，下游消费得慢。如果不加节制，内存很快就会被撑爆 (OOM)。我们需要一个机制，当堆积太多时，能强迫上游“慢下来”。
 
-**解决**: `ArrayBlockingQueue<T>(capacity)`. `put(t)` 满了 block; `take()` 空了 block。
+**💡 武器库**：`ArrayBlockingQueue` (有界阻塞队列)。
 
-**术语**:
-- producer-consumer pattern
-- bounded queue (有界队列) vs unbounded (`LinkedBlockingQueue` 默认 Integer.MAX_VALUE — 危险)
-- back-pressure: 满队列 block 上游, 上游就慢下来 → 系统自适应
-- 三组接口语义对照:
-  - **throw**: `add` / `remove` / `element` — 满/空时抛异常
-  - **return special value**: `offer` / `poll` / `peek` — 满/空时返回 false / null
-  - **block**: `put` / `take` — 满/空时**阻塞**
-  - **timed**: `offer(t, time, unit)` / `poll(time, unit)` — 阻塞但有超时
-- poison pill: 给消费者发一个特殊值表示"该退出了"
+**🎯 它的作用**：这是一个自带锁和通知机制的容器。当队列满了，调用 `put()` 的生产者会被强制挂起睡觉；当队列空了，调用 `take()` 的消费者会挂起等待。这就是高可用架构中经常提的**“背压 (Back-pressure)”**机制。
 
-**Drill**: 实现 `Lesson06`:
-- `BlockingQueue<Integer> queue = new ArrayBlockingQueue<>(10)`
-- `void produce(int item)`: `queue.put(item)`
-- `int consume()`: 返回 `queue.take()`
-- 测试: 1 producer 推 100 个数字, 1 consumer 拿 100 个, 求和验证 (4950)
-
-**观察**: 选 capacity = 10 而生产 100, 消费者要是不跑生产者就 block 在第 11 个。
+**你的任务**：实现一个容量只有 10 的缓冲池。观察当你强行塞入 100 个元素时，如果消费者不跑，生产者是如何被安全挂在第 11 个元素上的。
 
 ---
 
-## Lesson 07 — `CountDownLatch` (一次性等待)
+## 🛠️ Lesson 07 — `CountDownLatch` (一次性发令枪与终点线)
 
-**问题**: 主线程要等 N 个 worker 都跑完才能继续。
+**❓ 现实痛点**：主线程把一份巨大的工作拆给了 50 个子线程并行去做，主线程必须等到这 50 个小弟**全部干完活**，才能继续往下进行最终的汇总。
 
-**解决**: `CountDownLatch(n)`, worker 跑完 `countDown()`, 主线程 `await()`。计到 0 就放行, **不能重用**。
+**💡 武器库**：`CountDownLatch` (倒数计时器)。
 
-**术语**:
-- one-shot synchronizer (一次性同步器)
-- start gate (起跑枪) — `new CountDownLatch(1)`, 所有 worker 先 `await()`, 主线程 `countDown()` → 大家同时冲, 用来制造 race window
-- finish line (终点线) — `new CountDownLatch(N)`, worker 各自 `countDown()`, 主线程 `await()` 等全部完成
-- 如果要可重用, 用 `CyclicBarrier` (循环屏障)
-- 如果要可加可减, 用 `Phaser`
+**🎯 它的作用**：初始化设为 50，主线程调用 `await()` 苦等；子线程干完活就调用 `countDown()` 减 1。减到 0 时，主线程立刻被放行。注意，它是一次性的，用完就废了。
 
-**Drill**: 实现 `Lesson07`:
-- `void runAll(int n, Runnable task)`: 启动 n 个线程各跑一次 `task`, 方法**只在所有 n 个都完成之后**才返回
-- 测试: task 是给 AtomicInteger ++, 跑 n = 50, 方法返回后 AtomicInteger 必须正好 50
+**你的任务**：写一个通用的批量执行方法，确保这个方法返回时，所有的并发任务必须结结实实地全部跑完。
 
 ---
 
-## Lesson 08 — `Semaphore` (限并发数)
+## 🛠️ Lesson 08 — `Semaphore` (系统的限流保护神)
 
-**问题**: 第三方 API 限 5 并发, 我们要保证同时最多 5 个线程在调它。
+**❓ 现实痛点**：你要调用一个极其脆弱的第三方支付 API，对方明确要求：同一时刻最多只能承受 5 个并发请求。而你的系统有几十个工作线程，怎么控制这股洪流不把对方冲垮？
 
-**解决**: `Semaphore(5)`. 调之前 `acquire()`, 调完 `release()`。多余的线程在 acquire 处 block。
+**💡 武器库**：`Semaphore` (信号量)。
 
-**术语**:
-- permit (许可证): semaphore 里的票
-- counting semaphore (计数信号量) vs binary semaphore (信号量为 1, 等价于 mutex)
-- 公平 / 非公平: `new Semaphore(n, true)` 是公平
-- **常见坑**: `release()` 必须放 finally, 否则异常路径泄漏 permit, 越漏越少, 最后大家都 acquire 不到
-- `tryAcquire()`, `tryAcquire(timeout)`
+**🎯 它的作用**：它就像是发放“许可证”的门卫。初始化 5 张许可证，进门前必须 `acquire()` 拿票，出门时必须 `release()` 还票。拿不到票的线程只能在门外排队。
+> ⚠️ **致命天坑**：万一工作代码抛出异常，线程死掉了，票就永远还不回来了。所以 `release()` **也必须、必须**写在 `finally` 块里！
 
-**Drill**: 实现 `Lesson08`:
-- 构造 `Lesson08(int permits)`, 内部 `Semaphore`
-- `void access()`: acquire → sleep 30ms (模拟工作) → release, 用 try-finally
-- 同时维护一个 `AtomicInteger inFlight` 和 `AtomicInteger peakInFlight`, 记录任何时刻"正在 access 里的线程数"的峰值
-- 测试: 创建 permits=3, 启动 12 个线程并发 access, 全部跑完后 peakInFlight 必须 ≤ 3
+**你的任务**：实现一个严格限并发的保护壳，并顺便记录下系统在并发巅峰期，到底有多少个线程在同时运行。
 
 ---
 
-## Lesson 09 — `ExecutorService` + `Future` (线程池 + 异步结果)
+## 🛠️ Lesson 09 — `ExecutorService` + `Future` (外包团队与取件凭证)
 
-**问题**: 不想自己 `new Thread()`, 也不想自己 join 收结果。
+**❓ 现实痛点**：手动去 `new Thread()` 实在太低效了，而且最头疼的是，普通线程跑完就结束了，你根本没法直接让它给你返回计算结果。
 
-**解决**: 把 task 扔给 `ExecutorService`, 它返回 `Future<T>`, `future.get()` 阻塞直到结果出来 (或抛 `ExecutionException`)。
+**💡 武器库**：大名鼎鼎的 `ExecutorService` (线程池) 和 `Future`。
 
-**术语**:
-- thread pool, work queue, core / max pool size
-- `Runnable` (无返回) vs `Callable<T>` (有返回, 可以抛 checked exception)
-- `submit(Callable)` 返回 `Future`; `execute(Runnable)` 不返回任何东西
-- `future.get()` 阻塞; `future.get(timeout)` 超时; `future.isDone()` 非阻塞探测
-- `invokeAll(tasks)`: 提交一批, **等全部完成**, 返回 `List<Future>`
-- `shutdown()` (软停, 等已提交的跑完) vs `shutdownNow()` (硬停, 中断在跑的)
-- `ExecutionException`: 任务抛了异常, 异常被包在这里
+**🎯 它的作用**：线程池就像一个长期雇佣的外包团队。你把计算任务（`Callable`）扔给它，它马上丢给你一张“取件凭证”（`Future`）。你去忙别的事，等你需要结果了，就拿着凭证调 `future.get()` 去取。没算完？那你就稍等一会儿。
 
-**Drill**: 实现 `Lesson09`:
-- `long sumInParallel(List<Long> nums, int workers)`:
-  - 把 nums 切成 workers 份
-  - 每份用 `Callable<Long>` 求 partial sum
-  - 用 `ExecutorService.invokeAll` 提交, 然后 `future.get()` 收回每份 partial sum
-  - 返回总和; 方法返回前必须 shutdown 自己创建的 executor
-- 测试: 已知 list, 已知 sum, 比对
+**你的任务**：将一个巨长无比的数组切分，交给线程池里的多个工人去并行求和，最后再通过 Future 把结果收回来合并。这是典型的大数据分治思想。
 
 ---
 
-## 做完之后
+## 🎉 结语：接下来去哪？
 
-回头看 [01-Event-Counter](../01-Event-Counter/) → [02-URL-Hit-Counter](../02-URL-Hit-Counter/) → … 你会发现每道题就是把 1-2 个 lesson 里的 primitive 用到一个真问题上。**先把 9 个 lesson 都过一遍, 这一套真题就稳了**。
+如果你一行行手敲打通了这 9 个 Drill，那么恭喜你，JUC 对你不再是未知的黑盒。
+
+现在，请带着你的新武器回到上一层目录，挑战实战题： 
+01-Event-Counter → 02-URL-Hit-Counter ...
+你会发现，所谓大厂的高频并发题，本质上不过就是把你刚刚学过的这些原语，套上了一个业务的外壳而已。加油！

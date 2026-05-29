@@ -1,15 +1,19 @@
-# Java Concurrency Practice
+# 🚀 Java Concurrency Practice (并发编程实战特训)
 
-两部分:
+> 并发编程不仅是面试的试金石，更是构建高可用系统的核心内功。打破对多线程恐惧的唯一方法，就是亲自掌控它们。
 
-1. **[00 — Concurrency Basics](00-Concurrency-Basics/)** —— 9 个超短**教学型 drill**, 每个聚焦一个 primitive (volatile / synchronized / AtomicLong / ConcurrentHashMap / ReentrantLock / BlockingQueue / CountDownLatch / Semaphore / ExecutorService+Future). 目的是把 JUC 的接口和术语**亲手敲熟**. **先做这个**.
-2. **01-06 真题** —— 6 道生产代码里真见过的小问题, 体会"在这种场景下我该挑哪个原语".
+本仓库旨在通过高强度的定向刻意练习，帮你建立对并发原语 (Concurrency Primitives) 的“肌肉记忆”。包含两部分：
 
-stub 抛 `UnsupportedOperationException`, 测试 runner 会显示 SKIPPED。
+1. 🐣 **00 — Concurrency Basics (基础篇)** 
+   包含 9 个超短的**教学型 Drill**。每个练习聚焦一个核心原语（如 `volatile` / `AtomicLong` 等）。目标是让你将 JUC 核心 API 与底层的专业术语（如可见性、原子性、无锁并发）建立直观映射。👉 **强烈建议从这里起步。**
+2. ⚔️ **01-06 生产真题演练** 
+   精选自真实系统架构（如 Metrics 监控、限流、消息攒批）的 6 道精简版实战题。重点考察**“在特定业务边界下，如何进行并发工具的技术选型 (Trade-off)”**。
+
+> 💡 **提示**：模板代码（Stub）默认抛出 `UnsupportedOperationException`，测试显示 `SKIPPED`。补全代码逻辑后，测试将变绿 `PASSED`。
 
 ---
 
-## 真题列表 (做完 00 再来)
+## 🎯 真题列表 (建议通关 00 篇后再来)
 
 | # | 题目 | 真实出处 | 主要练 | 难度 |
 |---|------|----------|--------|------|
@@ -22,15 +26,15 @@ stub 抛 `UnsupportedOperationException`, 测试 runner 会显示 SKIPPED。
 
 ---
 
-## 怎么练
+## 🎮 训练指南
 
-每题独立, 进文件夹后:
+每题均为独立工程，进入文件夹后执行：
 
 ```bash
 cd <题目文件夹>
 javac <Name>.java <Name>Test.java
-java <Name>Test                  # 跑所有 case
-java <Name>Test concurrent       # 只跑并发 case
+java <Name>Test                  # 运行所有验证 case
+java <Name>Test concurrent       # 仅运行高强度并发压测 case
 ```
 
 **测试约定**: 每题都有 `single` (单线程正确性) 和 `concurrent` (多线程压测) 两类 case。单线程 PASS 不算完成 —— 必须 concurrent 也稳定 PASS, 而且**多跑几次都不抖**。如果偶尔 fail, 说明实现里还有 race。
