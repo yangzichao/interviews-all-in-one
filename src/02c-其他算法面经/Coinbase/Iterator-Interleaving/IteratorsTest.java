@@ -10,6 +10,10 @@ public class IteratorsTest {
         tests.put("part2", IteratorsTest::testPart2);
         tests.put("part3", IteratorsTest::testPart3);
         tests.put("part4", IteratorsTest::testPart4);
+        tests.put("part5", IteratorsTest::testPart5);
+        tests.put("part6", IteratorsTest::testPart6);
+        tests.put("part7", IteratorsTest::testPart7);
+        tests.put("part8", IteratorsTest::testPart8);
 
         List<String> toRun = args.length == 0 ? new ArrayList<>(tests.keySet()) : Arrays.asList(args);
         for (String name : toRun) {
@@ -167,6 +171,173 @@ public class IteratorsTest {
         assertEq(2, e.next(), "then 2");
         assertEq(3, e.next(), "then 3");
         assertTrue(!e.hasNext(), "exhausted");
+    }
+
+    // ===== Part 5: ConcurrentInterleavingIterator =======================
+
+    static void testPart5() {
+        // basic single-threaded sanity — should still produce the same multiset
+        // as Part 2 even though order may differ when accessed concurrently.
+        List<Iterator<Integer>> in = List.of(
+                List.of(1, 2, 3).iterator(),
+                List.of(4, 5).iterator(),
+                List.of(6).iterator()
+        );
+        Iterator<Integer> it = new Iterators.ConcurrentInterleavingIteratorPart5(in);
+        List<Integer> drained = drain(it);
+        List<Integer> sorted = new ArrayList<>(drained);
+        Collections.sort(sorted);
+        assertEq(List.of(1, 2, 3, 4, 5, 6), sorted, "single-threaded total multiset");
+
+        // empty case
+        Iterator<Integer> empty = new Iterators.ConcurrentInterleavingIteratorPart5(List.of());
+        assertTrue(!empty.hasNext(), "empty hasNext==false");
+
+        // Concurrent stress: 4 threads pull until exhausted, union must equal the
+        // input multiset, no element should be emitted twice, no NoSuchElement.
+        int n = 5000;
+        List<Iterator<Integer>> iters = new ArrayList<>();
+        for (int s = 0; s < 4; s++) {
+            List<Integer> l = new ArrayList<>();
+            for (int i = 0; i < n; i++) l.add(s * n + i);
+            iters.add(l.iterator());
+        }
+        Iterator<Integer> sharedIt = new Iterators.ConcurrentInterleavingIteratorPart5(iters);
+        java.util.concurrent.ConcurrentLinkedQueue<Integer> collected = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        int threadCount = 4;
+        Thread[] threads = new Thread[threadCount];
+        for (int t = 0; t < threadCount; t++) {
+            threads[t] = new Thread(() -> {
+                try {
+                    while (sharedIt.hasNext()) {
+                        try {
+                            collected.add(sharedIt.next());
+                        } catch (NoSuchElementException ignore) {
+                            // Allowed only if the implementation chose TOCTOU-tolerant style;
+                            // count it as a fail to be strict.
+                            throw new AssertionError("NoSuchElementException leaked to consumer");
+                        }
+                    }
+                } catch (AssertionError ae) {
+                    throw ae;
+                }
+            });
+        }
+        for (Thread th : threads) th.start();
+        for (Thread th : threads) {
+            try { th.join(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }
+        assertEq(4 * n, collected.size(), "all elements emitted exactly once (count)");
+        Set<Integer> uniq = new HashSet<>(collected);
+        assertEq(4 * n, uniq.size(), "no duplicate emit across threads");
+    }
+
+    // ===== Part 6: BatchedInterleavingIterator + stats ==================
+
+    static void testPart6() {
+        List<Iterator<Integer>> in = List.of(
+                List.of(1, 2, 3).iterator(),
+                List.of(4, 5).iterator(),
+                List.of(6).iterator(),
+                List.<Integer>of().iterator(),
+                List.of(7, 8, 9).iterator()
+        );
+        Iterators.BatchedInterleavingIteratorPart6 it = new Iterators.BatchedInterleavingIteratorPart6(in);
+
+        // batch larger than n=4: should return first 4 in interleaving order
+        List<Integer> b1 = it.nextBatch(4);
+        assertEq(List.of(1, 4, 6, 7), b1, "first batch of 4 in round-robin order");
+
+        // next batch of 100 should drain the rest (5 elements)
+        List<Integer> b2 = it.nextBatch(100);
+        assertEq(List.of(2, 5, 8, 3, 9), b2, "remaining elements when batch > available");
+
+        // exhausted → empty list, NOT NoSuchElementException
+        List<Integer> b3 = it.nextBatch(10);
+        assertEq(List.of(), b3, "exhausted nextBatch returns empty list");
+
+        // stats sanity
+        Iterators.StatsPart6 st = it.stats();
+        assertEq(9L, st.emittedCount, "stats emittedCount");
+        assertTrue(st.exhaustedSourceCount >= 4, "stats exhaustedSourceCount >= 4 (incl. initial empty)");
+        assertTrue(st.callCount >= 3, "stats callCount tracks nextBatch invocations");
+
+        // empty input
+        Iterators.BatchedInterleavingIteratorPart6 empty =
+                new Iterators.BatchedInterleavingIteratorPart6(List.of());
+        assertEq(List.of(), empty.nextBatch(10), "empty input nextBatch");
+        assertTrue(!empty.hasNext(), "empty hasNext");
+    }
+
+    // ===== Part 7: SnapshotIterator =====================================
+
+    static void testPart7() {
+        // basic: iterate snapshot of a list
+        List<Integer> source = new ArrayList<>(List.of(1, 2, 3, 4, 5));
+        Iterator<Integer> it = new Iterators.SnapshotIteratorPart7(source);
+        assertEq(List.of(1, 2, 3, 4, 5), drain(it), "snapshot basic drain");
+
+        // mutation policy: implementation must commit to ONE of:
+        //   (i)  fail-fast: throws CME on next hasNext()/next()
+        //   (ii) weakly-consistent: yields the pre-mutation snapshot
+        List<Integer> src2 = new ArrayList<>(List.of(10, 20, 30));
+        Iterator<Integer> it2 = new Iterators.SnapshotIteratorPart7(src2);
+        assertEq(10, it2.next(), "snapshot first elem before mutation");
+        src2.add(40);   // mutate after iterator created
+        src2.remove(Integer.valueOf(20));
+
+        boolean threwCME = false;
+        List<Integer> rest = new ArrayList<>();
+        try {
+            while (it2.hasNext()) rest.add(it2.next());
+        } catch (ConcurrentModificationException e) {
+            threwCME = true;
+        }
+
+        // Accept either semantics, but require consistency with the chosen one.
+        if (threwCME) {
+            // fail-fast path — that's a valid implementation
+        } else {
+            // weakly-consistent path: should see the original 20, 30 (and NOT 40)
+            assertEq(List.of(20, 30), rest, "weakly-consistent snapshot rest");
+        }
+
+        // empty
+        Iterator<Integer> emptyIt = new Iterators.SnapshotIteratorPart7(new ArrayList<>());
+        assertEq(List.of(), drain(emptyIt), "empty snapshot");
+    }
+
+    // ===== Part 8: ResumableIterator (cursor) ===========================
+
+    static void testPart8() {
+        List<List<Integer>> sources = List.of(
+                List.of(1, 2, 3),
+                List.of(4, 5),
+                List.of(6),
+                List.of(),
+                List.of(7, 8, 9)
+        );
+        Iterators.ResumableInterleavingIteratorPart8 it =
+                new Iterators.ResumableInterleavingIteratorPart8(sources);
+
+        // emit first 4 = [1, 4, 6, 7] in canonical round-robin order
+        List<Integer> first4 = drainN(it, 4);
+        assertEq(List.of(1, 4, 6, 7), first4, "first 4 in canonical order");
+
+        // save cursor mid-flight
+        String cursor = it.saveCursor();
+        assertTrue(cursor != null && !cursor.isEmpty(), "cursor should be a non-empty string");
+
+        // restore from cursor — should continue, NOT restart
+        Iterators.ResumableInterleavingIteratorPart8 it2 =
+                Iterators.ResumableInterleavingIteratorPart8.restore(cursor, sources);
+        List<Integer> rest = drain(it2);
+        assertEq(List.of(2, 5, 8, 3, 9), rest, "restored iterator emits remaining elements");
+
+        // also: the original iterator (if we kept consuming it) should yield the same rest
+        // (i.e. saveCursor() must NOT mutate the iterator state)
+        List<Integer> origRest = drain(it);
+        assertEq(List.of(2, 5, 8, 3, 9), origRest, "saveCursor is read-only on iterator state");
     }
 
     // ===== Part 4: CycleIterator ========================================
