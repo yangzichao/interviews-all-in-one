@@ -1,23 +1,63 @@
 import java.util.*;
 
 /**
- * 4-part Coinbase interview practice — Kafka Event Processing.
+ * Coinbase interview practice — Kafka Event Processing  (8 parts).
  *
- * 每个 Part 是独立的 class,后缀 PartN。先无脑独立写,做完再讨论抽公共逻辑。
+ * ════════════════════════════════════════════════════════════════════════
+ *  背景故事 (BACKGROUND) —— 读这里就够入手, 不需要懂 Kafka 内部
+ * ════════════════════════════════════════════════════════════════════════
  *
- * 这不是产品代码,是练习代码 —— 让你能专注当前 Part 而不破坏已完成的部分。
+ *  想象一个交易平台 (比如 Coinbase)。用户每下一单、每充值一笔, 系统就产生
+ *  一条 "事件 (event)"。这些事件不是直接写进数据库, 而是先丢进一个叫
+ *  Kafka 的消息队列里, 排成一条长长的流。
+ *
+ *      [下单服务] ──产生事件──▶  Kafka 队列  ──▶  [你的程序: consumer]
+ *        producer                (一条事件流)        逐条读出来处理
+ *
+ *  你要写的就是右边那个 "consumer": 一个一个把事件读出来 (这个动作叫
+ *  consume / 消费), 做点处理 —— 计数、去重、排序、统计…… 听起来简单,
+ *  但真实世界的消息队列有几个 "不完美", 正是这道题层层加码要应对的:
+ *
+ *    ① 重复投递: Kafka 承诺 "至少投一次 (at-least-once)" —— 为了不丢消息,
+ *       它宁可把同一条消息投给你两次。所以同一条事件你可能 consume 到多次,
+ *       要自己识别并丢掉重复的 (Part 2)。
+ *
+ *    ② 乱序到达: 网络抖动会让事件不按产生顺序到。producer 先发的可能后到,
+ *       你却必须按原始顺序处理 (Part 3)。
+ *
+ *    ③ 高吞吐 / 故障 / 重启: 流量大要多线程 (Part 5)、坏消息不能卡死整条流
+ *       (Part 6)、要监控自己有没有处理得过来 (Part 7)、程序崩了重启得知道
+ *       从哪接着读 (Part 8)。
+ *
+ *  几个术语 (后面注释会用到, 先混个脸熟):
+ *    · producer  : 产生事件、往队列里写的一方
+ *    · consumer  : 你, 从队列里把事件读出来处理的一方
+ *    · consume   : "消费" 一条事件 = 把它读出来交给你的逻辑
+ *    · messageId : producer 给每条逻辑消息打的唯一编号 (用来认出重复)
+ *    · sequence  : 同一用户的事件被 producer 编的递增流水号 1,2,3… (用来排序)
+ *    · offset    : consumer "已经读到第几条" 的进度标记 (Part 8 要持久化它)
+ *
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * 题面直接写在每个 Part 上方 —— 读代码就能读题, 不用切到别处。
+ * 坑点 / 取舍 / follow-up 答案在 README.md (含剧透), 练的时候别看。
+ *
+ * 逐步加约束; 面试时一次只给一个 Part, 做完再放下一个。
+ * 每个 Part 是独立的 class, 后缀 PartN —— 让你能专注当前 Part 而不破坏已完成的部分。
  */
 public class KafkaEventProcessing {
 
     // ====================================================================
-    // 通用 record  —  贯穿 4 个 Part 的 Event schema
+    // 通用 record  —  贯穿所有 Part 的 Event schema
     // ====================================================================
     //
-    //   messageId : producer 端的唯一 id (Part 2 起用于 dedupe)
-    //   userId    : 哪个用户 (Part 1 起用于分组计数)
-    //   sequence  : 该 user 严格递增的逻辑序号 (Part 3 起用于重排序)
-    //   eventTime : event 自身的时间戳, ms (Part 4 用于窗口)
+    //   messageId : producer 端给每条逻辑消息的唯一 id (Part 2 起用于 dedupe)
+    //   userId    : 事件属于哪个用户 (Part 1 起用于分组计数)
+    //   sequence  : 该 user 下严格递增的逻辑序号 (Part 3 起用于重排序)
+    //   eventTime : 事件自身的时间戳, ms (Part 4 用于窗口)
     //   payload   : 业务数据本体
+    //
+    // 用不到的字段在该 Part 可以忽略。
 
     public static record Event(String messageId, String userId,
                                long sequence, long eventTime, String payload) {}
@@ -25,91 +65,153 @@ public class KafkaEventProcessing {
     // ====================================================================
     // PART 1  —  basic consume + count                              [⚠ TODO]
     // ====================================================================
-    // 不去重、不排序、不窗口. 就是热身.
+    // 场景: 队列里的事件一条条来, 你先做最简单的事 —— 收下来, 数一数:
+    //       一共处理了多少条? 每个用户各多少条?
+    //       (好比一个收银台先统计 "今天来了几位客人、每位下了几单"。)
+    //
+    // 这一 Part 不去重、不排序、不窗口, 纯热身, 建立 baseline。
     //
     //   consume(e1, alice); consume(e2, bob); consume(e3, alice);
     //   totalConsumed()          → 3
     //   consumedByUser("alice")  → 2
-    //   consumedByUser("zz")     → 0
+    //   consumedByUser("zz")     → 0   // 没见过的 user 返回 0
 
     public static class ProcessorPart1 {
 
+        private Map<String, Integer> userCount;
         public ProcessorPart1() {
-            throw new UnsupportedOperationException("ProcessorPart1: not implemented");
+            userCount = new HashMap<>();
         }
 
         public void consume(Event event) {
-            throw new UnsupportedOperationException("ProcessorPart1.consume: not implemented");
+            String userId = event.userId();
+            userCount.put(userId, userCount.getOrDefault(userId, 0) + 1);
         }
 
         public int totalConsumed() {
-            throw new UnsupportedOperationException("ProcessorPart1.totalConsumed: not implemented");
+            int count = 0;
+            for (String userId : userCount.keySet()) {
+                count += userCount.get(userId);
+            }
+            return count;
         }
 
         public int consumedByUser(String userId) {
-            throw new UnsupportedOperationException("ProcessorPart1.consumedByUser: not implemented");
+            return userCount.getOrDefault(userId, 0);
         }
     }
 
     // ====================================================================
     // PART 2  —  idempotent dedupe by messageId                     [⚠ TODO]
     // ====================================================================
-    // Kafka 是 at-least-once. 同 messageId 第二次来必须忽略.
-    // 计数只反映 distinct messageId.
+    // 场景: 前面背景说过, Kafka 为了不丢消息会把同一条事件投给你多次
+    //       (at-least-once)。如果这条事件是 "用户充值 $100", 你处理两遍就
+    //       给人记了 $200 —— 灾难。所以 consumer 必须自己认出重复并丢掉。
+    //
+    //       怎么认? producer 给每条逻辑消息打了唯一的 messageId。同一个
+    //       messageId 第二次及以后到达, 一律忽略。计数只反映 distinct messageId。
+    //       ("idempotent / 幂等" 就是指: 同一条消息处理一次和处理多次效果相同。)
     //
     //   consume(mid=m1, user=a); consume(mid=m1, user=a);  // 第二个忽略
     //   consume(mid=m2, user=a);
-    //   totalConsumed()         → 2
+    //   totalConsumed()         → 2   // 只数 distinct: m1, m2
     //   consumedByUser("a")     → 2
 
     public static class ProcessorPart2 {
 
+        private Set<String> consumed;
+        private Map<String, Integer> userCount;
         public ProcessorPart2() {
-            throw new UnsupportedOperationException("ProcessorPart2: not implemented");
+            this.consumed = new HashSet<>();
+            this.userCount = new HashMap<>();
         }
 
         public void consume(Event event) {
-            throw new UnsupportedOperationException("ProcessorPart2.consume: not implemented");
+            if (consumed.contains(event.messageId())) return;
+            String messageId = event.messageId();
+            String userId = event.userId();
+            consumed.add(messageId);
+            userCount.put(userId, userCount.getOrDefault(userId, 0) + 1);
+
         }
 
         public int totalConsumed() {
-            throw new UnsupportedOperationException("ProcessorPart2.totalConsumed: not implemented");
+            int count = 0;
+            for (String userId : userCount.keySet()) {
+                count += userCount.get(userId);
+            }
+            return count;
         }
 
         public int consumedByUser(String userId) {
-            throw new UnsupportedOperationException("ProcessorPart2.consumedByUser: not implemented");
+            return userCount.getOrDefault(userId, 0);
         }
     }
 
     // ====================================================================
     // PART 3  —  ordered output by sequence                         [⚠ TODO]
     // ====================================================================
-    // 只 track 一个 user. expected 从 startSequence 起.
-    // 乱序来的先 buffer, 收到 expected 时一并 drain.
-    //   - seq < expected         → 已处理过, 忽略
-    //   - seq == expected        → emit, 再 drain buffer
-    //   - seq > expected         → buffer 起来
-    //   - 同 seq 来第二次          → 忽略 (dup)
-    //   - userId 不匹配           → 忽略
+    // 场景: producer 给同一用户的事件编了递增流水号 sequence = 1,2,3,…
+    //       (比如一个用户的下单步骤必须按顺序处理)。但网络会让它们乱序到达:
+    //       你可能先收到 3, 再收到 1。你不能一收到就处理 —— 必须按 1,2,3 的
+    //       原始顺序往下游 "输出 (emit)"。还没轮到的, 先攒着, 等缺口补上再一起放。
     //
-    // consume() 返回这次能 emit 的有序列表 (可能空, 可能很长).
+    //       (类比: 你在拼一套带编号的拼图, 必须从第 1 块开始按号摆出去; 手里
+    //        拿到第 5 块但第 2 块还没来, 就只能先攥着第 5 块。)
+    //
+    // 规则 (构造时给定要 track 的 userId 和起始 startSequence, 只处理这一个 user):
+    //   设 expected = 下一个该输出的 sequence (从 startSequence 起)。
+    //   - userId 不匹配           → 不属于本 processor, 忽略
+    //   - seq < expected         → 早就输出过的旧消息, 忽略
+    //   - seq == expected        → 输出它; 再看后面 expected+1,+2… 连续到齐的一并输出
+    //   - seq > expected         → 还没轮到, 先存着, 本次返回空
+    //   - 同一个 seq 第二次到达     → 重复, 忽略
+    //
+    // consume() 返回 "本次调用能按序输出的有序列表" (可能空, 也可能一次输出很多条)。
 
     public static class ProcessorPart3 {
-
+        private final Map<Long, Event> events;
+        private final String userId;
+        private long startSequence;
         public ProcessorPart3(String userId, long startSequence) {
-            throw new UnsupportedOperationException("ProcessorPart3: not implemented");
+            this.events = new HashMap<>();
+            this.userId = userId;
+            this.startSequence = startSequence;
+
         }
 
         public List<Event> consume(Event event) {
-            throw new UnsupportedOperationException("ProcessorPart3.consume: not implemented");
+            String eventMessageId = event.messageId();
+            String eventUserId = event.userId();
+            long eventSequence = event.sequence();
+            if (!eventUserId.equals(userId) 
+                || eventSequence < startSequence) 
+            {
+                return new ArrayList<>();
+            }
+            
+            List<Event> ans = new ArrayList<>();
+            events.put(eventSequence, event);
+            long index = this.startSequence;
+            while (events.containsKey(index)) {
+                ans.add(events.get(index));
+                events.remove(index);
+                index++;
+            }
+            this.startSequence = index;
+            return ans;
         }
     }
 
     // ====================================================================
     // PART 4  —  time-window aggregation                            [⚠ TODO]
     // ====================================================================
-    // 滑动 event-time 窗口 [now - windowMillis, now] (两端闭区间).
-    // consume() 仍然按 messageId dedupe.
+    // 场景: 风控 / 监控常问 "最近 N 毫秒内发生了多少笔?" —— 这就是滑动窗口。
+    //       注意时间用的是事件自带的 eventTime (它真实发生的时刻), 不是你处理
+    //       它的墙上时钟 —— 因为事件会迟到, 用墙上时钟会算错。
+    //
+    //       给定窗口宽度 windowMillis, 查询某个时刻 now 时, 统计落在
+    //       [now - windowMillis, now] (两端都闭) 内的事件。事件仍按 messageId 去重。
     //
     //   processor = new ProcessorPart4(10)
     //   consume(t=0,  user=a, mid=m1)
@@ -122,12 +224,15 @@ public class KafkaEventProcessing {
 
     public static class ProcessorPart4 {
 
+        private List<Event> list;
+        private long windowMillis;
         public ProcessorPart4(long windowMillis) {
-            throw new UnsupportedOperationException("ProcessorPart4: not implemented");
+            this.windowMillis = windowMillis;
+            this.list = new ArrayList<>();
         }
 
         public void consume(Event event) {
-            throw new UnsupportedOperationException("ProcessorPart4.consume: not implemented");
+            
         }
 
         public int countInWindow(long nowEventTime) {
@@ -140,33 +245,19 @@ public class KafkaEventProcessing {
     }
 
     // ====================================================================
-    // PART 5  —  并发 consume + partition 分配                       [⚠ TODO]
+    // PART 5  —  并发 consume + partition 路由                       [⚠ TODO]
     // ====================================================================
-    // 与 Part 4 比:
-    //   同: Event schema 不变, 仍然按 messageId dedupe
-    //   变: 多个 worker 线程同时 consume; 同一 user 的 event 必须由同一个
-    //       worker 处理 (才能保留 Part 3 的 per-user 顺序)
-    //   新: ProcessorPart5(int numWorkers); 内部用 hash(userId) % numWorkers
-    //       路由到 worker. 所有 read API (totalConsumed / consumedByUser)
-    //       必须是线程安全的.
+    // 场景: 流量上来了, 一个线程一条条读太慢。开 numWorkers 个 worker 线程
+    //       并行处理。难点是 Part 3 要求 "同一用户按序", 所以同一个用户的事件
+    //       不能被两个 worker 抢着处理 —— 必须始终落到同一个 worker。
     //
-    // 问题陈述:
-    //   单线程 consumer 撑不住吞吐 —— 上 N 个 worker. 但 Kafka 的保证是
-    //   "单 partition 内有序", 跨 partition 不保证. Producer 端用 key
-    //   (这里是 userId) 决定 partition, 让同 user 的 event 落到同一 partition.
-    //   你的 consumer 端也要保持这个不变量: 同 user → 同 worker.
+    // 约束:
+    //   - 同一个 userId 的 event 必须由同一个 worker 处理 (否则 Part 3 的
+    //     per-user 顺序会被破坏)。
+    //   - 仍然按 messageId 去重。
+    //   - 所有读 API (totalConsumed / consumedByUser) 必须线程安全。
     //
-    // 面试要讨论的取舍 (Coinbase 必问的方向):
-    //   1. 一把大锁 vs 每 worker 一把锁: 后者吞吐线性增长, 但 totalConsumed
-    //      要遍历所有 worker (或者用 LongAdder).
-    //   2. ConcurrentHashMap 看似简单, 但 size() 不是强一致, 计数会漂移.
-    //   3. 同 user 同 worker 怎么实现: 入站 dispatch queue (ArrayBlockingQueue) 还是
-    //      直接 hash 到 worker 的本地 map (然后调用方自己保证不跨线程)?
-    //   4. Rebalance: 加一个 worker 时, hash(userId) % N 变化, 几乎所有 user 都要
-    //      搬家 —— 跟 In-Memory-Database Part 8 的分片是同一个问题. 这里要不要
-    //      上一致性哈希? (面试官最爱追问这个.)
-    //
-    // 你要写的: 构造 N 个 worker (内部状态), 路由 dispatch, 线程安全聚合.
+    // (坑点 / rebalance / 一致性哈希等 follow-up 讨论见 README。)
 
     public static class ProcessorPart5 {
 
@@ -197,31 +288,17 @@ public class KafkaEventProcessing {
     // ====================================================================
     // PART 6  —  poison-pill 重试 + DLQ                              [⚠ TODO]
     // ====================================================================
-    // 与 Part 5 比:
-    //   同: dedupe by messageId, multi-worker 不变
-    //   变: consume(e) 的真正业务处理交给一个外部 Handler, 它可能抛异常 (恶意 payload
-    //       / 下游服务挂了). 不能因为一条坏消息卡死整个 partition.
-    //   新: 构造时传入 Handler + maxRetries; 失败到顶就进 DLQ (dead-letter queue).
+    // 场景: 偶尔会有一条 "毒丸 (poison pill)" 消息 —— payload 解析报错, 或它
+    //       依赖的下游服务正好挂了, 处理它就抛异常。如果你死磕重试, 整条流就被
+    //       它堵死, 后面的好消息全卡住。要做到: 坏消息重试几次还不行, 就把它
+    //       挪到一个 "死信队列 (DLQ)" 单独存着, 主流继续往下走。
     //
-    // 问题陈述:
-    //   生产里最常见的事故: 某个 messageId 的 payload 解析报错, consumer 死循环
-    //   重试, offset 不前进, lag 爆炸. 解决方案:
-    //     - 重试有限次 (带 backoff)
-    //     - 顶到上限后写入 DLQ, 主流 offset 继续前进
-    //     - DLQ 由人 (或离线任务) 后审, 不阻塞主链路.
+    // 真正的业务处理委托给一个外部 Handler, 它可能抛异常。要求:
+    //   - 失败要有限次重试。
+    //   - 重试到上限仍失败 → 写入 DLQ (dead-letter queue), 主流继续前进。
+    //   - 仍按 messageId 去重。
     //
-    // 面试要讨论的取舍:
-    //   1. 重试在同步路径 (consume() 阻塞重试) vs 异步路径 (失败后丢到 retry topic
-    //      / delay queue): 同步简单但阻塞 partition; 异步要额外存储和调度.
-    //   2. Backoff 策略: 固定间隔 vs 指数退避 vs 抖动 (jitter, 避免雷鸣群).
-    //   3. DLQ 是另一个 Kafka topic 还是本地存储? 真线上几乎都是另一个 topic, 因为
-    //      要复用 Kafka 的持久化和重新消费能力.
-    //   4. 区分错误类型: 永久性 (payload schema 错) 直接进 DLQ, 不重试;
-    //      瞬态 (下游 5xx) 重试. 怎么区分? Handler 抛不同子类异常.
-    //   5. Idempotency: 重试时不能再触发 Part 2 的 dedupe (否则重试根本不起作用).
-    //      在哪一层 dedupe? messageId 进入时 dedupe, 还是处理成功后 dedupe?
-    //
-    // 你要写的: ProcessorPart6 — 包装 Handler, 重试到上限, 失败入 DLQ.
+    // (backoff / 同步 vs 异步重试 / 错误分类等 follow-up 讨论见 README。)
 
     public interface EventHandlerPart6 {
         // 抛任何异常都算失败, 触发重试.
@@ -257,29 +334,18 @@ public class KafkaEventProcessing {
     // ====================================================================
     // PART 7  —  消费滞后监控 (lag)                                   [⚠ TODO]
     // ====================================================================
-    // 与 Part 6 比:
-    //   同: dedupe + 重试 + DLQ 的语义可继续沿用
-    //   变: 在 producer 端会持续打"已生产到 sequence=X" 的 high-water mark,
-    //       consumer 要 track "已处理到 sequence=Y", 实时报 lag = X - Y.
-    //   新: recordProducerHighWatermark(userId, seq); lag(userId); totalLag().
+    // 场景: 运维最关心一个问题 —— "consumer 追得上 producer 吗?" 如果 producer
+    //       每秒产 1000 条、你只处理 800 条, 积压 (lag) 会越滚越大, 该报警 / 扩容了。
+    //       "lag" 就是 producer 已经产到第几条、减去你已经处理到第几条的差。
     //
-    // 问题陈述:
-    //   线上 SRE 最关心的 Kafka 指标就是 "consumer lag". 它告诉你 consumer 是不是
-    //   跟上了生产速度, 是不是要扩容. 假设我们有一个 admin channel 持续告诉我们
-    //   每个 user 的 latest produced sequence (high-water mark), consumer 要
-    //   随时报出 lag.
+    // 外部 admin channel 会持续告诉你每个 user 在 producer 端已生产到第几条
+    // (high-water mark / 高水位线)。consumer 要随时报出:
+    //     lag = producer 已生产到的 sequence  −  consumer 已处理到的 sequence
     //
-    // 面试要讨论的取舍 (Coinbase 真实运营场景):
-    //   1. Lag 的定义: 条数 lag (seq 差值) 还是时间 lag (event_time 差值)?
-    //      条数好算, 时间更直观 (用户能感受到的延迟); 时间 lag 受时钟漂移影响.
-    //   2. 报警阈值: 绝对值 (lag > 10000) 还是相对值 (lag > 1min)? 大流量场景
-    //      用绝对值, 报警风暴.
-    //   3. Lag 的反向用途: lag 持续为 0 也可能是异常 (producer 挂了).
-    //   4. 多 worker 下怎么聚合 lag? 全局锁会拖垮路径, 用 LongAdder + 周期 sample.
-    //   5. Histogram vs 单值: P50/P99 的 lag 更有价值 (大部分 user lag 低,
-    //      少数 user lag 高就是热点 partition).
+    // 接口: recordProducerHighWatermark(userId, seq); lag(userId); totalLag();
+    //       maxLagUser()。
     //
-    // 这个 Part 偏 "添加观测性", 不强求改业务逻辑.
+    // (条数 lag vs 时间 lag / 聚合开销 / P99 等 follow-up 讨论见 README。)
 
     public static class ProcessorPart7 {
 
@@ -315,37 +381,20 @@ public class KafkaEventProcessing {
     // ====================================================================
     // PART 8  —  offset 持久化 + 重启恢复                             [⚠ TODO]
     // ====================================================================
-    // 与 Part 7 比:
-    //   同: 内存中的 dedupe / per-user sequence track 不变
-    //   变: 关键状态 (per-user lastProcessedSequence + seen messageIds 的最近窗口)
-    //       周期性 checkpoint 到 OffsetStore. 进程重启时从 OffsetStore 加载,
-    //       从 lastProcessedSequence + 1 继续消费.
-    //   新: OffsetStore 接口; ProcessorPart8(store) 构造; checkpoint() 触发持久化;
-    //       静态恢复方法 restoreFrom(store).
+    // 场景: 你的程序总会重启 (发版、崩溃、机器换)。重启后你怎么知道 "上次读到
+    //       哪条了"? 如果忘了, 要么从头重读 (大量重复), 要么从队尾开始 (丢消息)。
+    //       所以要把进度 (每个用户处理到第几条 = offset) 时不时存到外部 store;
+    //       重启时读回来, 从下一条接着读。
     //
-    // 问题陈述:
-    //   Kafka 自己提供 __consumer_offsets, 但语义上"消费完成"在哪一点 commit 决定了
-    //   at-least-once vs at-most-once:
-    //     - 处理前 commit: 处理中崩溃 → 丢消息 (at-most-once)
-    //     - 处理后 commit: commit 前崩溃 → 重复消费 (at-least-once, 配合 Part 2 dedupe)
-    //   Coinbase 财务场景必须是后者. 但 "dedupe set" 也得持久化, 否则重启后
-    //   Part 2 的 dedupe 失效, 重复消息会被重新处理.
+    // 关键状态 (每个 user 处理到的 lastProcessedSequence) 要周期性 checkpoint
+    // 到 OffsetStore。进程重启时从 store 加载, 从 lastProcessedSequence + 1
+    // 继续消费。
     //
-    // 面试要讨论的取舍:
-    //   1. Checkpoint 频率: 每条都 commit (慢) vs 批量 (省 IO 但崩溃丢更多) vs
-    //      按时间 (固定开销). Kafka client 默认 5s auto-commit, 但很多生产环境
-    //      改成 manual.
-    //   2. Exactly-once 怎么做? Kafka 0.11+ 的 transactional producer/consumer
-    //      把 "处理 + offset commit" 包成事务. 没事务的话, idempotent handler
-    //      (Part 6 + Part 2 dedupe) 是务实方案.
-    //   3. Dedupe set 持续增长 → 用 TTL bloom filter, 或者只保留最近 N 个
-    //      messageId, 或者按 sequence 单调推进 (Part 3 思路) 替代 messageId 集合.
-    //   4. OffsetStore 选型: Kafka 自身 / 外部 KV (Redis, etcd) / RDBMS.
-    //      和业务写在同一事务里 (RDBMS) 是 exactly-once 的本质.
-    //   5. Rebalance + checkpoint: 一个 partition 从 worker A 迁到 worker B,
-    //      A 要先 flush checkpoint, B 才能安全接管.
+    // 接口: OffsetStorePart8 (save / load); ProcessorPart8(store) 构造;
+    //       checkpoint() 触发持久化; lastSequenceFor(userId) 查恢复后的进度。
     //
-    // 不强求方法完整实现, 主要是设计讨论. 给一个最小可演示的入口:
+    // (at-least-once vs exactly-once / checkpoint 频率 / dedupe 状态持久化等
+    //  follow-up 讨论见 README。)
 
     public interface OffsetStorePart8 {
         // 把 (userId -> lastProcessedSequence) 全表写下去 (原子语义由实现保证).

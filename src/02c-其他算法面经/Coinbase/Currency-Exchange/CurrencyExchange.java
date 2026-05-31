@@ -97,12 +97,29 @@ public class CurrencyExchange {
     // 图可能有环, 别死循环.
 
     public static class BestRateConverterPart2 {
+        private Map<String, Map<String, Double>> graph;
         public BestRateConverterPart2(List<String[]> rates) {
-            throw new UnsupportedOperationException("BestRateConverterPart2: not implemented");
+            this.graph = new HashMap<>();
+            for (String[] rate : rates) {
+                String from = rate[0];
+                String to = rate[1];
+                Double val = Double.valueOf(rate[2]);
+                graph.putIfAbsent(from, new HashMap<>());
+                graph.putIfAbsent(to, new HashMap<>());
+                graph.get(from).put(to, val);
+                graph.get(to).put(from, 1.0 / val);
+            }
         }
 
         public double convertBest(String from, String to, double amount) {
-            throw new UnsupportedOperationException("BestRateConverterPart2.convertBest: not implemented");
+            Map<String, Double> bestInverse = new HashMap<>();
+            ArrayDeque<String> nodeQueue = new ArrayDeque<>();
+            ArrayDeque<Double> valQueue = new ArrayDeque<>();
+
+            nodeQueue.offer(to);
+            valQueue.offer(amount);
+
+            
         }
     }
 
@@ -195,61 +212,16 @@ public class CurrencyExchange {
     // 提示 (放代码里, 不是答案): rate 是 immutable double, 但邻接表本身需要同步.
 
     public static class ConcurrentStreamingConverterPart5 {
-        // 策略: Copy-on-Write —— 整张图是 immutable 的, 用一个 volatile 引用指向「当前版本」.
-        //   - update: 拷一份旧图 → 改这一份 → 把 volatile 引用原子地指向新图.
-        //   - convert: 读 volatile 引用拿到一张「定格快照」, 之后整趟搜索只看这张图.
-        // 为什么这样满足要求:
-        //   (a) 不撕裂: convert 一开始就把引用读进局部变量, 拿到的是某个真实存在过的完整版本;
-        //       期间别的线程换了新图也只是换了 this.graph 的指向, 我手里那张老快照不受影响.
-        //   (b) 读不阻塞: convert 全程无锁 (只有一次 volatile 读), 高频 convert 不被 update 卡住.
-        //   (c) 顺序不乱: update 上 synchronized, 同一对先 0.9 再 0.95 一定串行执行, 最终留 0.95.
-        //   (d) 中途有 update? —— convert 看的是「进来那一刻」的版本 (snapshot isolation),
-        //       不会看到更新; 这是明确、可解释的语义.
-        // 代价 (面试要主动说): 每次 update 整张图深拷贝 O(V+E). 行情 10k/s update 时复制成本爆炸.
-        //   → 真要扛高频写, 换 single-writer + 增量 / 分片, 但实现复杂. 这版优先「读一致 + 易解释」.
+        public ConcurrentStreamingConverterPart5() {
+            throw new UnsupportedOperationException("ConcurrentStreamingConverterPart5: not implemented");
+        }
 
-        private volatile Map<String, Map<String, Double>> graph = new HashMap<>();
-
-        public synchronized void update(String from, String to, double rate) {
-            Map<String, Map<String, Double>> next = deepCopy(graph);   // copy
-            next.computeIfAbsent(from, k -> new HashMap<>()).put(to, rate);
-            next.computeIfAbsent(to, k -> new HashMap<>()).put(from, 1.0 / rate);
-            graph = next;                                              // 原子发布新版本
+        public void update(String from, String to, double rate) {
+            throw new UnsupportedOperationException("ConcurrentStreamingConverterPart5.update: not implemented");
         }
 
         public double convert(String from, String to, double amount) {
-            Map<String, Map<String, Double>> snapshot = graph;        // 定格: 只读一次 volatile
-            if (from.equals(to)) return amount;                       // 空图也成立
-            if (!snapshot.containsKey(from) || !snapshot.containsKey(to)) {
-                throw new NoSuchElementException("No such currency");
-            }
-            // 任意可达路径即可 (Part 1 语义); 全程只看 snapshot, 与并发 update 隔离.
-            Set<String> visited = new HashSet<>();
-            ArrayDeque<String> nodeQueue = new ArrayDeque<>();
-            ArrayDeque<Double> valQueue = new ArrayDeque<>();
-            nodeQueue.add(from);
-            valQueue.add(amount);
-            visited.add(from);
-            while (!nodeQueue.isEmpty()) {
-                String cur = nodeQueue.poll();
-                double curVal = valQueue.poll();
-                if (cur.equals(to)) return curVal;
-                for (Map.Entry<String, Double> edge : snapshot.get(cur).entrySet()) {
-                    if (visited.add(edge.getKey())) {
-                        nodeQueue.add(edge.getKey());
-                        valQueue.add(curVal * edge.getValue());
-                    }
-                }
-            }
-            throw new NoSuchElementException("No path");
-        }
-
-        private static Map<String, Map<String, Double>> deepCopy(Map<String, Map<String, Double>> g) {
-            Map<String, Map<String, Double>> copy = new HashMap<>();
-            for (Map.Entry<String, Map<String, Double>> e : g.entrySet()) {
-                copy.put(e.getKey(), new HashMap<>(e.getValue()));
-            }
-            return copy;
+            throw new UnsupportedOperationException("ConcurrentStreamingConverterPart5.convert: not implemented");
         }
     }
 
