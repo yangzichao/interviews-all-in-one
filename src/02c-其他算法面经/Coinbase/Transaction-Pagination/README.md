@@ -14,90 +14,128 @@ public static record Transaction(String id, String userId, String type,
                                  long amount, long timestamp) {}
 //   type ∈ {"DEPOSIT", "WITHDRAWAL", "BUY", "SELL"}
 
+// 通用 query 条件: 字段 null 表示 wildcard, 非 null 字段之间是 AND.
+public static record Filter(String userId, String type,
+                            Long minAmount, Long maxAmount,
+                            Long startTs, Long endTs) {
+    public static Filter empty();
+    public boolean matches(Transaction tx);
+}
+
 // Part 1
 new StorePart1()
     .add(Transaction tx)                     // 重复 id 抛 IllegalArgumentException
-    .page(int offset, int limit) -> List<Transaction>
+    .list(Filter f) -> List<Transaction>
 
 // Part 2
 new StorePart2()
     .add(Transaction tx)
-    .page(Filter f, int offset, int limit) -> List<Transaction>
-// Filter(userId, type, minAmount, maxAmount), 字段 null 表示 wildcard.
+    .page(Filter f, String cursor, int limit) -> Page<Transaction>
+// Page<T>(List<T> items, String nextCursor); nextCursor==null 表示没有下一页.
 
 // Part 3
 new StorePart3()
     .add(Transaction tx)
-    .page(Filter f, String cursor, int limit) -> Page<Transaction>
-// Page<T>(List<T> items, String nextCursor); nextCursor==null 表示没有下一页.
-
-// Part 4
-new StorePart4()
-    .add(Transaction tx)
     .page(Filter f, String cursor, int limit, Direction dir) -> Page<Transaction>
 // Direction { FORWARD, BACKWARD }.  FORWARD = 翻往更老; BACKWARD = 翻往更新.
+
+// Part 4/5
+new StorePart4() / new StorePart5()
+    .add(Transaction tx)
+    .page(Filter f, String cursor, int limit, Direction dir) -> Page<Transaction>
+
+// Part 6
+new StorePart6()
+    .add(Transaction tx)
+    .page(Filter f, SortKey sortKey, String cursor, int limit) -> Page<Transaction>
+
+// Part 7/8
+new ShardedStorePart7() / new CachedStorePart8()
+    .add(Transaction tx)
+    .page(Filter f, String cursor, int limit) -> Page<Transaction>
 ```
 
 ---
 
 ## 8 个 Part 的核心
 
-> Part 1–4 是面经原题(Coinbase VO #3 4-part 渐进设计题)。
-> Part 5–8 是**超越面经**的 follow-up —— Coinbase 团队明确说重点考"并发 / 数据增长 / 取舍",
+> Part 1–3 是核心编码题: filter -> cursor -> bidirectional cursor。
+> Part 4–8 是**超越面经**的 follow-up —— Coinbase 团队明确说重点考"并发 / 数据增长 / 取舍",
 > 这些就是面试官真要追问、而面经经常省略的部分。
 
 | Part | 一句话 | 易踩的坑 / 讨论点 |
 |------|--------|----------|
-| 1 | 存 list,按 (timestamp DESC, id ASC) 排序,offset + limit 切片 | 重复 id 必须抛;timestamp 相同时 id ASC 是稳定 tiebreaker |
-| 2 | 过滤后再排序再切片;`Filter` 字段 null = wildcard | 4 个字段全 null = "全量" |
-| 3 | cursor 是 `(timestamp, id)` 的 base64 编码,opaque | 插入更老的数据**不能**让已发的 cursor 错位;到末尾 `nextCursor=null` |
-| 4 | 加 BACKWARD 方向 | 翻完一页后用返回的 cursor + 反方向能拿回上一页 |
-| 5 | **并发安全 + 分页快照** | page 扫描中途 add 不能抛 / 不能撕裂;锁粒度选择 |
-| 6 | **二级索引 + keyset pagination(按 amount 排序)** | offset 100K 灾难 vs keyset O(limit);维护几个索引 |
+| 1 | `add` + `list(Filter)`,按 (timestamp DESC, id ASC) 排序 | 重复 id 必须抛;Filter 是显式参数,不是 store 上的 mutable state |
+| 2 | cursor 是 `(timestamp, id)` 的 base64 编码,opaque | 插入更老的数据**不能**让已发的 cursor 错位;到末尾 `nextCursor=null` |
+| 3 | 加 BACKWARD 方向 | 翻完一页后用返回的 cursor + 反方向能拿回上一页 |
+| 4 | **并发安全 + 分页快照** | page 扫描中途 add 不能抛 / 不能撕裂;锁粒度选择 |
+| 5 | **userId 二级索引 + index selection** | userId 高 cardinality,收益大;其他字段作为剩余 predicate |
+| 6 | **二级排序索引 + keyset pagination(按 amount 排序)** | offset 100K 灾难 vs keyset O(limit);维护几个索引 |
 | 7 | **跨分片分页(scatter-gather / k-way merge)** | shard 加减 / cursor 怎么编码 16 个子游标 |
 | 8 | **缓存 + Stateful vs Stateless cursor** | 热门用户 cache 失效;cursor 形态的取舍 |
 
 ---
 
-### Part 1 详解 — sort order
+### Part 1 详解 — explicit Filter + sort order
 
 排序键:**timestamp DESC**(新的在前),timestamp 相同时 **id ASC**(稳定 tiebreaker)。
 
 ```
 add: (id="b", t=10), (id="a", t=10), (id="c", t=20)
-page(0, 10) → [c(t=20), a(t=10), b(t=10)]
+list(Filter.empty()) → [c(t=20), a(t=10), b(t=10)]
 ```
-
-`offset` 跳过前面 N 条,`limit` 最多取 N 条。`offset` 越界 → 返回空 list,不抛。
 
 **为什么 id 是 ASC 而 timestamp 是 DESC?** UI 里最新的在最上,但同一秒里要给一个稳定确定的顺序,id 字典序最简单。
 
----
-
-### Part 2 详解 — Filter 是 AND 组合
+面试里最稳的写法就是直接 new 一个 value object。不要在 record 里写
+`withUserId()` 这种看起来像"修改对象"的方法, 容易把自己绕晕。
 
 ```java
-new Filter(userId, type, minAmount, maxAmount)
+Filter all = Filter.empty();
+Filter aliceOnly = new Filter("alice", null, null, null);
+Filter buyOnly = new Filter(null, "BUY", null, null);
+Filter aliceBuy = new Filter("alice", "BUY", null, null);
+Filter amountRange = new Filter(null, null, 100L, 1000L);
 ```
 
 - 字段 null = 该字段不限制(wildcard)
 - 非 null 字段之间是 **AND**
 - `minAmount`/`maxAmount` 是闭区间 `[min, max]`
+- `startTs`/`endTs` 是闭区间 `[startTs, endTs]`
 
-```
-new Filter("alice", null, 100L, 1000L)
-  → alice 的交易里 amount ∈ [100, 1000] 的
-new Filter(null, "BUY", null, null)
-  → 所有人的 BUY 交易
-new Filter(null, null, null, null)
-  → 全量
+Filter 自己负责判断一条交易是否命中:
+
+```java
+public boolean matches(Transaction tx) {
+    if (userId != null && !userId.equals(tx.userId())) return false;
+    if (type != null && !type.equals(tx.type())) return false;
+    if (minAmount != null && tx.amount() < minAmount) return false;
+    if (maxAmount != null && tx.amount() > maxAmount) return false;
+    if (startTs != null && tx.timestamp() < startTs) return false;
+    if (endTs != null && tx.timestamp() > endTs) return false;
+    return true;
+}
 ```
 
-**实现思路**:先过滤再排序再切片。面试可以提一句 "如果过滤命中率低,可以为 userId/type 建二级索引",但**别真去写**——面试官想看的是你说出来,不是 30 行 index 代码。
+**实现思路**:Filter 是查询条件,不是执行策略。最自然的 store 结构是:
+
+```java
+Map<String, Transaction> byId;
+TreeSet<Transaction> byTime;
+Map<String, TreeSet<Transaction>> byUserId;
+```
+
+执行 `list(filter)` 时:
+
+- `filter.userId != null` -> 从 `byUserId.get(userId)` 开始扫
+- 否则 -> 从全局 `byTime` 开始扫
+- 再套 type / amount / date 的剩余 predicate
+
+这样 Part 1 就不会在 API 设计上暗示 "chain filter = full table scan"。
 
 ---
 
-### Part 3 详解 — cursor pagination
+### Part 2 详解 — cursor pagination
 
 为什么不用 offset?因为数据会变。在 offset=20 时新插入一条更新的交易,你下一次 offset=40 就会**重复**或**跳过**一条。
 
@@ -122,10 +160,10 @@ page(filter=∅, cursor=encode(t=10,"a"), limit=2)
 
 ---
 
-### Part 4 详解 — 双向翻页
+### Part 3 详解 — 双向翻页
 
 加一个 `Direction`:
-- `FORWARD`(默认行为,跟 Part 3 一样):往更老翻
+- `FORWARD`(默认行为,跟 Part 2 一样):往更老翻
 - `BACKWARD`:往更新翻(回到前一页)
 
 ```
@@ -147,7 +185,7 @@ backward 从 b 开始 (cursor=encode(10,"b"), limit=2, BACKWARD)
 
 ---
 
-## Part 5 — 并发安全 + 分页快照(Coinbase 面试**最常追问**的方向)
+## Part 4 — 并发安全 + 分页快照(Coinbase 面试**最常追问**的方向)
 
 **问题**:N 个线程持续 `add` 新交易,另一些线程同时 `page`。要求:
 - `page()` 中途 `add` 不能让排序枚举抛 `ConcurrentModificationException`
@@ -191,7 +229,35 @@ backward 从 b 开始 (cursor=encode(10,"b"), limit=2, BACKWARD)
 
 ---
 
-## Part 6 — 二级索引 + keyset pagination(按 amount 排序)
+## Part 5 — userId 二级索引 + index selection
+
+**问题**:Filter API 只是表达查询条件, 不代表执行时 full scan。交易查询最常见、收益最大的索引通常是 `userId`:
+
+```java
+Map<String, Transaction> byId;
+TreeSet<Transaction> byTime;
+Map<String, TreeSet<Transaction>> byUserId;
+```
+
+执行策略:
+
+- `filter.userId != null` -> 先走 `byUserId.get(userId)`, candidate set 通常很小
+- `filter.userId == null` -> 退回 `byTime`, 再套剩余 predicate
+- `type/amount/date` 先作为剩余过滤条件; 只有 query pattern 足够频繁时才加额外索引
+
+**面试里最自然的一句话**:
+
+> "Filter is the logical query shape. Execution should still be index-aware. Since userId has high cardinality and most transaction queries are user-scoped, I'd add a userId secondary index first."
+
+**为什么不一开始就建所有复合索引?**
+
+- 每个额外索引都会增加 `add` 的写放大
+- 索引会占内存
+- `userId + type`, `userId + amount`, `type + timestamp` 这些组合是否值得建, 要看真实 query volume
+
+---
+
+## Part 6 — 二级排序索引 + keyset pagination(按 amount 排序)
 
 **问题**:产品要支持"按 amount 从大到小翻页"。数据量 100 亿。
 - offset 分页在 offset=100000 时 DB 要扫前 100020 行 —— **灾难**
@@ -269,7 +335,7 @@ backward 从 b 开始 (cursor=encode(10,"b"), limit=2, BACKWARD)
 
 **自检题**:
 - 我 cursor 里编了 N 个子 cursor —— base64 后多大? 客户端 URL 长度有限制吗?
-- N=1 时我的 sharded store 行为跟单机的 StorePart5 一致吗?
+- N=1 时我的 sharded store 行为跟单机的 StorePart6 一致吗?
 - 一个 shard 慢 (network blip), 我整个 page 调用慢成什么样? 超时怎么处理?
 
 ---
@@ -280,7 +346,7 @@ backward 从 b 开始 (cursor=encode(10,"b"), limit=2, BACKWARD)
 
 **Stateful vs Stateless cursor 对比**(面试官真要追问的):
 
-| 维度 | Stateless(Part 3 用的) | Stateful |
+| 维度 | Stateless(Part 2/3 用的) | Stateful |
 |------|----------------------|----------|
 | 服务端状态 | 无 | Redis / memory 存 cursor → query state |
 | 客户端透明性 | cursor 含排序键 (能解码看) | 完全 opaque (UUID) |
@@ -345,8 +411,12 @@ Part 1 SKIPPED (not implemented)
 Part 2 SKIPPED (not implemented)
 Part 3 SKIPPED (not implemented)
 Part 4 SKIPPED (not implemented)
+Part 5 SKIPPED (not implemented)
+Part 6 SKIPPED (not implemented)
+Part 7 SKIPPED (not implemented)
+Part 8 SKIPPED (not implemented)
 
-Passed=0  Failed=0  Skipped=4
+Passed=0  Failed=0  Skipped=8
 ```
 
 骨架在 [TransactionPagination.java](TransactionPagination.java),测试在 [TransactionPaginationTest.java](TransactionPaginationTest.java)。每个 Part 在文件里是一段独立的 `public static class`,后缀 `PartN`:
@@ -356,8 +426,8 @@ PART 1: TransactionPagination.StorePart1         [⚠ 你来写]
 PART 2: TransactionPagination.StorePart2         [⚠ 你来写]
 PART 3: TransactionPagination.StorePart3         [⚠ 你来写]
 PART 4: TransactionPagination.StorePart4         [⚠ 你来写]
-PART 5: TransactionPagination.StorePart5         [⚠ 超越面经 follow-up — 并发]
-PART 6: TransactionPagination.StorePart6         [⚠ 超越面经 follow-up — 二级索引]
+PART 5: TransactionPagination.StorePart5         [⚠ 超越面经 follow-up — userId 索引]
+PART 6: TransactionPagination.StorePart6         [⚠ 超越面经 follow-up — amount 排序索引]
 PART 7: TransactionPagination.ShardedStorePart7  [⚠ 超越面经 follow-up — 分片 / 偏设计讨论]
 PART 8: TransactionPagination.CachedStorePart8   [⚠ 超越面经 follow-up — cache / cursor 取舍]
 ```

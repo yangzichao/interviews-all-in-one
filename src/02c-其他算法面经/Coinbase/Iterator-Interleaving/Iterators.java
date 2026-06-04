@@ -2,7 +2,37 @@ import java.util.*;
 import java.util.function.IntPredicate;
 
 /**
- * 4-part Coinbase interview practice — Iterator / Interleaving Iterator.
+ * Coinbase interview practice — Iterator / Interleaving Iterator  (8 parts).
+ *
+ * ════════════════════════════════════════════════════════════════════════
+ *  背景故事 (BACKGROUND) —— 读这里就够入手, 不需要懂任何高级数据结构
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ *  "迭代器 (Iterator)" 是一个最朴素的东西: 它就是一个 "取下一个" 的小机器。
+ *  你只能问它两件事:
+ *      hasNext()  —— "还有没有下一个?"   (返回 true / false)
+ *      next()     —— "把下一个给我"       (返回那个元素, 并往前走一步)
+ *  你看不到背后到底是数组、链表、文件还是网络流 —— 它把 "数据从哪来" 藏起来了,
+ *  调用方只管一个一个地取。这正是它有用的地方: 数据源可能无限大 / 还没全部
+ *  到齐 / 来自远端, 你不需要(也无法) 一次性把它全装进内存。
+ *
+ *  这道题从最简单的迭代器一路加码:
+ *    Part 1  自己造一个按区间产数的迭代器 (热身, 先熟悉 hasNext/next 的契约)
+ *    Part 2  把 k 个迭代器 "交错 (interleave)" 合并成一个 —— 轮流从每个取一个
+ *            (round-robin / 轮转), 这就是本题的主线 (LeetCode 281 的推广)
+ *    Part 3  给一个迭代器套一层 "过滤", 只放行满足条件的元素
+ *    Part 4  让一个迭代器走到底后从头循环, 永远取不完
+ *    Part 5+ 升级到并发安全、批量取数 + 观测、迭代中数据源被改、可保存恢复的
+ *            游标 (cursor) —— 真实工程里的迭代器问题。
+ *
+ *  几个术语 (后面注释会用到, 先混个脸熟):
+ *    · Iterator     : 上面说的 "取下一个" 小机器, 接口 = hasNext() + next()
+ *    · interleave   : 交错合并 —— 把多个迭代器轮流各取一个拼成一路输出
+ *    · round-robin  : 轮转 —— 1号取一个、2号取一个、…、回到1号, 周而复始
+ *    · 耗尽 (exhausted): 某个迭代器 hasNext()==false, 即已经没有元素了
+ *    · NoSuchElementException : 已经没有元素了还调 next(), 按 Java 约定要抛它
+ *
+ * ════════════════════════════════════════════════════════════════════════
  *
  * 每个 Part 是独立的 class,后缀 PartN。先无脑独立写,做完再讨论抽公共逻辑。
  *
@@ -13,13 +43,19 @@ public class Iterators {
     // ====================================================================
     // PART 1  —  RangeIterator(start, end, step)                    [⚠ TODO]
     // ====================================================================
-    // 半开区间 [start, end), step >= 1.
+    // 场景: 热身 —— 自己造一个最简单的迭代器, 按等差数列产数, 借此熟悉
+    //       hasNext()/next() 的契约。产出 start, start+step, start+2*step, …
+    //       直到 >= end 为止 (半开区间 [start, end), 不含 end)。step >= 1。
     //
     //   new RangeIteratorPart1(0, 5, 1)   →  0,1,2,3,4
     //   new RangeIteratorPart1(0, 10, 3)  →  0,3,6,9
-    //   new RangeIteratorPart1(5, 5, 1)   →  (空)
+    //   new RangeIteratorPart1(2, 8, 2)   →  2,4,6
+    //   new RangeIteratorPart1(5, 5, 1)   →  (空, start==end)
+    //   new RangeIteratorPart1(10, 5, 1)  →  (空, start>end)
     //
-    // next() 在 hasNext()==false 时 → 抛 NoSuchElementException.
+    // 注意 / 边界:
+    //   - hasNext() 可被多次调用, 不能改变状态
+    //   - next() 在 hasNext()==false 时 → 抛 NoSuchElementException
 
     public static class RangeIteratorPart1 implements Iterator<Integer> {
         private int lo;
@@ -47,13 +83,23 @@ public class Iterators {
     // ====================================================================
     // PART 2  —  InterleavingIterator                               [⚠ TODO]
     // ====================================================================
-    // 输入 k 个 Iterator<Integer>, 公平 round-robin 输出, 跳过已耗尽的.
+    // 场景: 本题主线 (LeetCode 281 ZigZag Iterator 的 k 路推广)。给你 k 个
+    //       迭代器, 把它们 "交错" 合并成一个: 轮流从每个各取一个 (round-robin),
+    //       某个取空了就把它跳过, 剩下的继续轮。这样下游就像在读一路统一的数据流。
+    //
+    // 输入: List<Iterator<Integer>> —— list 里的先后顺序就是 round-robin 的顺序。
+    //       注意是 Iterator 不是 List, 不能预先知道每路有多长。
     //
     //   [[1,2,3],[4,5],[6],[],[7,8,9]] → 1,4,6,7,2,5,8,3,9
+    //     第1轮各取头一个: 1(第0路) 4(第1路) 6(第2路) [第3路空跳过] 7(第4路)
+    //     第2轮: 2 5 [第2路已空] 8 ; 第3轮: 3 [..] 9
+    //   [[1,3,5],[2,4,6]]              → 1,2,3,4,5,6   (等长两路就是经典 ZigZag)
+    //   [[1,2,3]]                      → 1,2,3         (单路 = 原样透传)
     //
-    // 注意:
-    //   - 输入是 Iterator<Integer> 不是 List<Integer> (不能预知长度)
-    //   - 输入 list 的 iterator 顺序就是 round-robin 顺序
+    // 注意 / 边界:
+    //   - 空输入 list, 或所有子迭代器都为空 → 整体为空 (hasNext()==false)
+    //   - 已耗尽的子迭代器要自然退出轮转, 不能再被取到
+    //   - next() 在耗尽后 → NoSuchElementException
 
     public static class InterleavingIteratorPart2 implements Iterator<Integer> {
         // 用 ArrayDeque 当 round-robin 队列:
@@ -87,9 +133,17 @@ public class Iterators {
     // ====================================================================
     // PART 3  —  FilterIterator                                     [⚠ TODO]
     // ====================================================================
-    // wrap 已有的 Iterator<Integer>, 只暴露满足 predicate 的元素.
+    // 场景: 给一个已有的迭代器套一层 "过滤网" —— 只放行满足条件 (predicate) 的
+    //       元素, 不满足的悄悄跳过。下游看到的就是过滤后的流, 完全感觉不到背后
+    //       被丢掉了哪些。
     //
-    //   src=[1,-2,3,-4,5,6], keep=(x>0) → 1,3,5,6
+    // 接口: 构造 FilterIteratorPart3(源迭代器, IntPredicate keep);
+    //       keep.test(x) 返回 true 表示该元素保留。
+    //
+    //   src=[1,-2,3,-4,5,6], keep=(x>0)     → 1,3,5,6
+    //   src=[1,2,3,4],       keep=(x%2==0)  → 2,4
+    //   src=[1,3,5],         keep=(x%2==0)  → (空, 全被滤掉)
+    //   src=[],              keep=(任意)     → (空)
     //
     // 用到的 API:
     //   - Iterator<Integer>: it.hasNext(), it.next()
@@ -142,12 +196,15 @@ public class Iterators {
     // ====================================================================
     // PART 4  —  CycleIterator                                      [⚠ TODO]
     // ====================================================================
-    // 走到 source 末尾后从头循环.
+    // 场景: 一个 "永动" 迭代器 —— 走到 source 末尾后, 不停下来, 而是从头再来,
+    //       无限循环。除非 source 本身是空的, 否则永远 hasNext()==true。
+    //       (类似把一个播放列表设成 "单曲/列表循环"。)
     //
-    //   new CycleIteratorPart4([1,2,3]) → 1,2,3,1,2,3,1,2,3,...
-    //   new CycleIteratorPart4([])      → (永远 hasNext()==false)
+    // 输入: source 是 List<Integer> 不是 Iterator —— 因为要能反复从头重读。
     //
-    // source 是 List<Integer> 不是 Iterator (要能从头重读).
+    //   new CycleIteratorPart4([1,2,3]) → 1,2,3,1,2,3,1,2,3,...  (取 9 个: 1,2,3,1,2,3,1,2,3)
+    //   new CycleIteratorPart4([7])     → 7,7,7,7,7,...
+    //   new CycleIteratorPart4([])      → 永远 hasNext()==false; next() → NoSuchElementException
     //
     // 用到的 API:
     //   - source.isEmpty() -> boolean

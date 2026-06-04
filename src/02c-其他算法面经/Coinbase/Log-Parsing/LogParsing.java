@@ -2,10 +2,46 @@ import java.util.*;
 import java.util.function.Predicate;
 
 /**
- * 4-part Coinbase interview practice — Log Parsing.
+ * Coinbase interview practice — Log Parsing (8 parts).
+ *
+ * ════════════════════════════════════════════════════════════════════════
+ *  背景故事 (BACKGROUND) —— 读这里就够入手
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ *  线上服务每时每刻都在往日志里写文本行。运维 / 排障的人需要把这些杂乱的文本
+ *  收集起来、按线程分组、按时间排序、按条件过滤、按时间窗口查询…… 你要写的就是
+ *  这套日志处理逻辑的内核 (一个简化版的 Splunk / Loki / Elasticsearch)。
+ *
+ *  每一行日志都长这个样子, 四个字段用空格分隔:
+ *
+ *      "<timestamp> <thread_id> <level> <message>"
+ *       └ 时间戳    └ 线程编号   └ 级别  └ 消息正文 (可以含空格)
+ *
+ *      例:  "1500 t2 WARN slow query"
+ *            ts=1500, threadId="t2", level="WARN", message="slow query"
+ *
+ *  解析约定 (贯穿所有 Part):
+ *    · 只按前 3 个空格切分 (split(" ", 4)), 所以 message 内部的空格会被保留。
+ *    · malformed 行 (token 不足 4 个, 或 timestamp 不是合法 long) **静默丢弃, 不抛**。
+ *
+ *  题目逐 Part 加码: 解析分组 → 谓词过滤 → 时间窗口查询 → 流式追加 → 滑动窗口
+ *  聚合 → 并发读写 → 冷热分层归档 → 倒排索引 + 分片 + compaction。后面几个 Part
+ *  从"解析日志"升级成"设计一个日志检索系统"。
+ *
+ *  术语 (后面注释会用到, 先混个脸熟):
+ *    · timestamp / ts : 日志行的时间戳 (long, 单位由调用方定, 测试里当 ms 用)
+ *    · threadId       : 产生这条日志的线程 / 服务标识, 用来分组
+ *    · level          : 日志级别, 如 INFO / WARN / ERROR
+ *    · message        : 消息正文, 可含空格
+ *    · malformed      : 格式不合法的行 (字段不够 / ts 非数字), 一律静默跳过
+ *    · window / 窗口  : 一段时间区间 [from, to); 查询/聚合都围着它转
+ *    · streaming      : 数据一条条 append 进来, 而不是一次性给全 (可能乱序到达)
+ *
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * 题面直接写在每个 Part 上方 —— 读代码就能读题, 不用切到别处。
  *
  * 每个 Part 是独立的 class, 后缀 PartN. 先无脑独立写, 做完再讨论抽公共逻辑.
- *
  * 这不是产品代码, 是练习代码 —— 让你能专注当前 Part 而不破坏已完成的部分.
  *
  * Log line 格式:  "<timestamp> <thread_id> <level> <message>"
@@ -20,15 +56,25 @@ public class LogParsing {
     // ====================================================================
     // PART 1  —  Parse & Group                                      [⚠ TODO]
     // ====================================================================
-    // parse 每行 -> 按 threadId 分组 -> 每组按 timestamp 升序.
-    // malformed 行 (< 4 token 或 timestamp 不是 long) 静默丢弃, 不抛.
+    // 场景: 最朴素的一步 —— 把一批原始日志行解析成 LogEntry, 按 threadId 分组,
+    //       每组内部按 timestamp 升序。malformed 行静默丢弃 (不抛)。
     //
-    //   "1000 t1 INFO start"
-    //   "1500 t2 WARN slow"
-    //   "1200 t1 ERROR boom in core module"
-    //   ↓
-    //   { t1: [(1000,...,"start"), (1200,...,"boom in core module")],
-    //     t2: [(1500,...,"slow")] }
+    // parseAndGroup(lines) -> Map<threadId, List<LogEntry>>
+    //   - 每个 thread 一个 key; value 是该 thread 的 entry, timestamp 升序。
+    //   - 完全没有合法行时返回空 map。
+    //
+    // 例 (摘自测试):
+    //   输入:
+    //     "1000 t1 INFO start"
+    //     "1500 t2 WARN slow query"
+    //     "1200 t1 ERROR boom in core module"
+    //     "not a real line"            // malformed (字段不够) → 丢
+    //     "abc t1 INFO bad timestamp"  // malformed (ts 非数字) → 丢
+    //   输出:
+    //     { t1: [(1000, t1, INFO, "start"),
+    //            (1200, t1, ERROR, "boom in core module")],   // message 保留空格
+    //       t2: [(1500, t2, WARN, "slow query")] }
+    //   空输入 → 空 map (size 0)。
 
     public static class LogParserPart1 {
         public LogParserPart1() {}
@@ -41,12 +87,20 @@ public class LogParsing {
     // ====================================================================
     // PART 2  —  Filter by Predicate                                [⚠ TODO]
     // ====================================================================
-    // 与 Part 1 比:
-    //   同: parse 规则, 分组, 排序
-    //   变: 无
-    //   新: keep predicate, 只保留通过的 LogEntry
+    // 场景: 跟 Part 1 一样解析+分组+排序, 但只保留满足 keep 谓词的 LogEntry。
+    //       (例如"只看 ERROR 级别"。)
     //
-    // **过滤后没条目的 thread 完全不出现在 map 里** (key 也不要).
+    // 与 Part 1 比: parse / 分组 / 排序规则都不变; 多了一个 Predicate 参数。
+    //
+    // parseAndGroup(lines, keep) -> Map<threadId, List<LogEntry>>
+    //   - 过滤后**一条都不剩的 thread, 完全不出现在 map 里** (连 key 都没有)。
+    //   - keep = (e -> true) 时退化成 Part 1 的语义。
+    //
+    // 例 (摘自测试):
+    //   输入: "1000 t1 INFO ok" / "1100 t1 ERROR boom" /
+    //         "1200 t2 INFO ok" / "1300 t3 INFO normal"
+    //   keep = e -> e.level().equals("ERROR")
+    //   输出: { t1: [(1100, t1, ERROR, "boom")] }   // t2、t3 无 ERROR, key 都不出现
 
     public static class LogParserPart2 {
         public LogParserPart2() {}
@@ -59,14 +113,23 @@ public class LogParsing {
     // ====================================================================
     // PART 3  —  Time Window Query                                  [⚠ TODO]
     // ====================================================================
-    // 构造时一次性 parse + 索引, 后续多次 window 查询.
-    //   query(from, to, threadId)
-    //     - [from, to) 半开
-    //     - threadId == null  -> 所有 thread 合并, 按 timestamp 升序
-    //     - 否则只看该 thread, 按 timestamp 升序
+    // 场景: 构造时一次性传入全部日志行, 之后被多次问"某段时间内的日志"。
+    //       属于"建一次, 查多次"的形态。
     //
-    // 加分点: 按 thread 分桶 + 桶内升序, 二分 (Collections.binarySearch / lowerBound 写法)
-    //         定位 window 范围, O(log n + output).
+    // 构造: new LogParserPart3(lines)  —— 解析 + 建好内部索引。
+    // query(fromInclusive, toExclusive, threadId) -> List<LogEntry>
+    //   - 时间区间是**半开** [from, to): 含 from, 不含 to。
+    //   - threadId == null → 所有 thread 的命中条目合并, 整体按 timestamp 升序。
+    //   - threadId 非 null → 只看该 thread, 按 timestamp 升序。
+    //   - 命中为空 (空窗口 / 不存在的 thread) → 返回空 list。
+    //
+    // 例 (摘自测试; 数据 = t1@{100,200,300}, t2@{150,250}):
+    //   query(150, 300, "t1") → [200]                 // 含 150 起、不含 300
+    //   query(100, 301, "t1") → [100, 200, 300]
+    //   query(100, 300, "t1") → [100, 200]            // 300 被右端排除
+    //   query(0, 1000, null)  → [100,150,200,250,300] // 跨 thread 合并后升序
+    //   query(1000, 2000, "t1") → []                  // 空窗口
+    //   query(0, 1000, "tX")    → []                  // 未知 thread
 
     public static class LogParserPart3 {
         public LogParserPart3(List<String> lines) {
@@ -81,19 +144,26 @@ public class LogParsing {
     // ====================================================================
     // PART 4  —  Streaming Append                                   [⚠ TODO]
     // ====================================================================
-    // 与 Part 3 比:
-    //   同: 解析规则, LogEntry schema
-    //   变: 数据是流式 append 进来的, 不是一次性
-    //   新: 支持 out-of-order 到达, 每个 thread 内部维持 timestamp 升序
-    //       recent(threadId, n) 返回最近 n 条 (timestamp 最大的 n 条), 但 oldest-first
+    // 场景: 日志不再一次性给全, 而是一条条 append 进来 (流式), 且可能**乱序到达**
+    //       (晚到的行 timestamp 反而更小)。随时可以问某 thread"最近的 n 条"。
     //
-    //   append("1000 t1 INFO a")
-    //   append("3000 t1 INFO c")
-    //   append("2000 t1 INFO b")   <- out-of-order
-    //   recent("t1", 2)  ->  [(2000,...,"b"), (3000,...,"c")]
+    // 与 Part 3 比: 解析规则 / LogEntry schema 不变; 数据来源从一次性变成持续追加。
     //
-    // n > 实际数 -> 返回所有.
-    // thread 不存在 / 空 -> 返回 [].
+    // append(line)            -> 解析并存入; malformed 行静默忽略 (不影响已有数据)。
+    // recent(threadId, n)     -> 该 thread 中 timestamp 最大的 n 条, 但结果按
+    //                            **oldest-first** (timestamp 升序) 排列。
+    //   - n 大于实际条数 → 返回该 thread 全部。
+    //   - n == 0 / thread 不存在 / thread 为空 → 返回空 list。
+    //
+    // 例 (摘自测试):
+    //   append("1000 t1 INFO a"); append("3000 t1 INFO c");
+    //   append("2000 t1 INFO b");        // 乱序到达
+    //   append("500 t2 INFO x");
+    //   recent("t1", 2)  → [(2000,b), (3000,c)]   // 取最大 2 个, 但升序呈现
+    //   recent("t1", 10) → [(1000,a), (2000,b), (3000,c)]  // n 超量 → 全部
+    //   recent("tX", 3)  → []      // 未知 thread
+    //   recent("t1", 0)  → []      // n=0
+    //   append("bogus line"); recent("t1", 10) → 仍是上面那 3 条 (malformed 被忽略)
 
     public static class LogParserPart4 {
         public LogParserPart4() {}

@@ -1,4 +1,5 @@
 import java.util.*;
+import java.util.concurrent.*;
 
 /**
  * ============================================================================
@@ -14,6 +15,24 @@ import java.util.*;
  *  The problem is delivered in PARTS. In a real interview you only see the
  *  next part after finishing the current one. Each part adds one capability
  *  on top of the previous part's API.
+ *
+ *  ----------------------------------------------------------------------
+ *   术语 (GLOSSARY) —— 先混个脸熟, 后面注释会用到
+ *   ----------------------------------------------------------------------
+ *   · key / value : 键 / 值, 都是字符串
+ *   · timestamp   : 调用方传进来的逻辑时间 (int), 不读真实时钟; 时间只靠
+ *                   调用方传更大的值往前走
+ *   · entry       : 一个 key 当前对应的记录 (value + 它的过期信息)
+ *   · TTL         : time-to-live, 存活时长 (秒); 见 Part 3
+ *   · expireAt    : 一条 entry 的到期时刻; 半开区间 [写入时刻, expireAt),
+ *                   到了 expireAt 就视为不存在; null 表示永不过期
+ *   · 半开区间     : [start, end) —— 含 start 不含 end, 所以 now == expireAt 即过期
+ *   · scan        : 按 key 前缀查询, 结果按 key 字典序拼成字符串
+ *   · backup      : 给当前 "还活着" 的所有 entry 拍一张快照, 返回一个 backupId
+ *   · restore     : 用某个 backupId 的快照覆盖当前数据库
+ *   · backupId    : 快照编号, 从 1 开始每次 backup 递增 1
+ *
+ *  注: 题面用英文写, 术语表给中文对照; 两边说的是同一件事。
  *
  *  ----------------------------------------------------------------------
  *   PART 1 — basic put / get
@@ -86,156 +105,244 @@ import java.util.*;
  *  stubs live.
  * ============================================================================
  *
- *  Practice-code conventions in this file (NOT part of the problem):
- *    - Methods are suffixed putPartN / getPartN / scanPartN / ... so each
- *      part is independent and earlier parts keep passing after you change
- *      direction.
- *    - Each part's banner lists [same / changed / new] vs. the previous
- *      part. A new EntryPartN / mapPartN is introduced ONLY when the
- *      schema actually changes — otherwise reuse the previous one.
+ *  Practice-code conventions in this file:
+ *    - Each Part is a public static class DbPartN with clean method names
+ *      (put / get / scan / backup / restore) — no suffix weirdness.
+ *    - Parts whose schema is unchanged copy the same Entry + db fields;
+ *      only a schema change introduces a new Entry type.
+ *    - Stubs throw UnsupportedOperationException — the test runner treats
+ *      that as SKIPPED.
  */
 public class InMemoryDatabase {
 
     // ====================================================================
-    // PART 1  —  基础 put / get                                    [✓ DONE]
+    // PART 1  —  基础 put / get                                    [⚠ TODO]
     // ====================================================================
-    // 起点 —— EntryPart1 只存 (value, timestamp), HashMap 装着.
-
-    private record EntryPart1(String value, int timestamp) {}
-    private final Map<String, EntryPart1> mapPart1 = new HashMap<>();
-
-    public void putPart1(String key, String value, int timestamp) {
-        mapPart1.put(key, new EntryPart1(value, timestamp));
-    }
-
-    public Optional<String> getPart1(String key, int timestamp) {
-        EntryPart1 e = mapPart1.get(key);
-        return e == null ? Optional.empty() : Optional.of(e.value());
-    }
-
-    // ====================================================================
-    // PART 2  —  加 scan (prefix, 按字典序, 字符串格式)              [✓ DONE]
-    // ====================================================================
-    // 与 Part 1 比:
-    //   同: EntryPart1 / mapPart1  (schema 没变, 直接复用)
-    //   变: 无
-    //   新: scanPart2(prefix, timestamp) -> String
+    // 场景: 最朴素的 KV 存储 —— put 写入/覆盖一个 key, get 读回来; 没见过的 key
+    //       返回 Optional.empty()。完整契约见文件顶部 PART 1。
     //
-    // putPart2 / getPart2 是套壳到 Part 1, 没有逻辑改变.
+    //   put("a","x",t=1); get("a",t=2) → Optional.of("x")
+    //   put("a","y",t=3); get("a",t=4) → Optional.of("y")   (后写覆盖前写)
+    //   get("b",t=5)                    → Optional.empty()   (没写过)
+    //
+    // Entry schema: plain Map<String, String> — no Entry record needed here.
 
-    public void putPart2(String key, String value, int timestamp) {
-        putPart1(key, value, timestamp);
+    public static class DbPart1 {
+        final Map<String, String> db = new HashMap<>();
+
+        public void put(String key, String value, int timestamp) {
+            db.put(key, value);
+        }
+
+        public Optional<String> get(String key, int timestamp) {
+            return Optional.ofNullable(db.get(key));
+        }
     }
 
-    public Optional<String> getPart2(String key, int timestamp) {
-        return getPart1(key, timestamp);
-    }
+    // ====================================================================
+    // PART 2  —  加 scan (prefix, 按字典序, 字符串格式)              [⚠ TODO]
+    // ====================================================================
+    // 场景: 加一个前缀查询 —— 给一个 prefix, 把所有以它开头的 key 按字典序列出,
+    //       拼成 "k1(v1), k2(v2)" 这样的字符串 (分隔符正好是 ", ", 无尾逗号)。
+    //       空 prefix 匹配所有 key; 无匹配返回 ""。
+    //
+    //   put apple=1, app=2, banana=3
+    //   scan("app",t)  → "app(2), apple(1)"            (按 key 字典序)
+    //   scan("",t)     → "app(2), apple(1), banana(3)" (空前缀=全部)
+    //   scan("z",t)    → ""                            (无匹配)
+    //
+    // 与 Part 1 比:
+    //   同: Entry schema 不变 (直接复用)
+    //   变: 无
+    //   新: scan(prefix, timestamp) -> String
+    //
+    // ★ 复用: put / get 跟 Part 1 完全一样, 直接搬。
 
-    public String scanPart2(String prefix, int timestamp) {
-        List<String> keyList = new ArrayList<>();
-        for (String key : mapPart1.keySet()) {
-            if (key.startsWith(prefix)) {
-                keyList.add(key);
+    public static class DbPart2 {
+        record Entry(String value) {}
+        final Map<String, Entry> db = new HashMap<>();
+
+        public void put(String key, String value, int timestamp) {
+            db.put(key, new Entry(value));
+        }
+
+        public Optional<String> get(String key, int timestamp) {
+            Entry e = db.get(key);
+            return e == null ? Optional.empty() : Optional.of(e.value());
+        }
+
+        public String scan(String prefix, int timestamp) {
+            List<String> keys = new ArrayList<>();
+            for (String key : db.keySet()) {
+                if (key.startsWith(prefix)) keys.add(key);
             }
+            Collections.sort(keys);
+            StringBuilder sb = new StringBuilder();
+            for (String key : keys) {
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(key).append("(").append(db.get(key).value()).append(")");
+            }
+            return sb.toString();
         }
-        Collections.sort(keyList);
-        String res = "";
-        for (String key : keyList) {
-            if (res.length() > 0) res += ", ";
-            res += key + '(' + mapPart1.get(key).value() + ')';
-        }
-        return res;
     }
 
     // ====================================================================
-    // PART 3  —  加 TTL                                            [✓ DONE]
+    // PART 3  —  加 TTL                                            [⚠ TODO]
     // ====================================================================
+    // 场景: 给 put 加一个带存活时长的重载 put(k,v,t,ttl)。这条 entry 只在半开
+    //       区间 [t, t+ttl) 内有效, 到了 t+ttl 就当它不存在 (get 返 empty、scan
+    //       不列)。覆盖一个 key 时, 新的 value 和新的 TTL 一起生效, 旧 TTL 作废。
+    //
+    //   put("a","x",t=1,ttl=5)  → 有效区间 [1,6)
+    //     get("a",1)=of("x"); get("a",5)=of("x"); get("a",6)=empty (右端开)
+    //   put("b","y",t=10,ttl=0) → 空区间, 立刻过期, get("b",10)=empty
+    //   put("c","z",t=1)        → 无 ttl 重载 = 永久, get("c",1000000)=of("z")
+    //   覆盖会换 TTL: put("d",.,1,100) 后 put("d",.,2,1) → get("d",3)=empty
+    //   scan 同样过滤掉已过期的 entry。
+    //
     // 与 Part 2 比:
-    //   同: 数据结构思路一样 (HashMap), scan 字符串格式一样
-    //   变: Entry schema 加了 expireAt 字段 (null 表示永久)
-    //       -> 新 EntryPart3, 新 mapPart3
+    //   同: scan 字符串格式一样
+    //   变: Entry schema 加了 expireAt 字段 (null 表示永久) → 新 Entry
     //       get / scan 都要按 expireAt 过滤
-    //   新: putPart3(k,v,t,ttl) 重载 (带 TTL 的 put)
+    //   新: put(k,v,t,ttl) 重载 (带 TTL 的 put)
 
-    private record EntryPart3(String value, Integer expireAt) {}
-    private final Map<String, EntryPart3> mapPart3 = new HashMap<>();
+    public static class DbPart3 {
+        record Entry(String value, Integer expireAt) {}
+        final Map<String, Entry> db = new HashMap<>();
 
-    public void putPart3(String key, String value, int timestamp) {
-        mapPart3.put(key, new EntryPart3(value, null));  // 没 TTL = 永久
-    }
+        public void put(String key, String value, int timestamp) {
+            db.put(key, new Entry(value, null));
+        }
 
-    public void putPart3(String key, String value, int timestamp, int ttlSeconds) {
-        mapPart3.put(key, new EntryPart3(value, timestamp + ttlSeconds));
-    }
+        public void put(String key, String value, int timestamp, int ttlSeconds) {
+            db.put(key, new Entry(value, timestamp + ttlSeconds));
+        }
 
-    // expireAt == null  -> 永远不过期
-    // expireAt != null  -> 半开区间 [putTime, expireAt), 所以 expireAt <= now 即过期
-    private boolean isExpiredPart3(EntryPart3 entry, int timestamp) {
-        return entry.expireAt() != null && entry.expireAt() <= timestamp;
-    }
+        public Optional<String> get(String key, int timestamp) {
+            Entry e = db.get(key);
+            if (e == null || (e.expireAt() != null && timestamp >= e.expireAt())) return Optional.empty();
+            return Optional.of(e.value());
+        }
 
-    public Optional<String> getPart3(String key, int timestamp) {
-        EntryPart3 entry = mapPart3.get(key);
-        if (entry == null || isExpiredPart3(entry, timestamp)) return Optional.empty();
-        return Optional.of(entry.value());
-    }
-
-    public String scanPart3(String prefix, int timestamp) {
-        List<String> keyList = new ArrayList<>();
-        for (String key : mapPart3.keySet()) {
-            if (key.startsWith(prefix) && !isExpiredPart3(mapPart3.get(key), timestamp)) {
-                keyList.add(key);
+        public String scan(String prefix, int timestamp) {
+            List<String> keys = new ArrayList<>();
+            for (Map.Entry<String, Entry> entry : db.entrySet()) {
+                String key = entry.getKey();
+                Entry e = entry.getValue();
+                if (key.startsWith(prefix) && (e.expireAt() == null || timestamp < e.expireAt())) {
+                    keys.add(key);
+                }
             }
+            Collections.sort(keys);
+            StringBuilder sb = new StringBuilder();
+            for (String key : keys) {
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(key).append("(").append(db.get(key).value()).append(")");
+            }
+            return sb.toString();
         }
-        Collections.sort(keyList);
-        String res = "";
-        for (String key : keyList) {
-            if (res.length() > 0) res += ", ";
-            res += key + '(' + mapPart3.get(key).value() + ')';
-        }
-        return res;
     }
 
     // ====================================================================
     // PART 4  —  backup / restore                                  [⚠ TODO]
     // ====================================================================
+    // 场景: 支持给数据库 "拍快照" 再 "回滚"。backup(t) 把当前所有还活着 (在 t
+    //       未过期) 的 entry 存成一张快照, 返回一个 backupId (从 1 开始递增)。
+    //       restore(id, t) 用那张快照覆盖当前数据库。关键陷阱: 恢复出来的带 TTL
+    //       entry 保留的是 *剩余* 存活时长, 不是原始 TTL —— 即新到期时刻 =
+    //       restore 时刻 + (快照时它本来还能活多久)。永久 entry 恢复后仍永久。
+    //       backup 时已经过期的 entry 不进快照。
+    //
+    //   put("temp","v",t=1,ttl=10)   // 原本 [1,11)
+    //   bid = backup(t=5)            // bid=1; 此刻还剩 11-5=6 的寿命
+    //   put("temp","overwritten",100) // backup 之后再改, 不影响已存的快照
+    //   restore(bid, t=20)           // 新到期 = 20+6 = 26
+    //   get("temp",25)=of("v"); get("temp",26)=empty   (半开区间右端)
+    //
+    //   永久 entry: put("p","forever",1); backup; restore(1,100)
+    //     → get("p",1_000_000_000)=of("forever")   (恢复后仍永久)
+    //   第二次 backup 的 id 是 2 (单调递增)。
+    //
     // 与 Part 3 比:
-    //   同: EntryPart3 / mapPart3  (schema 没变, 不引入新 Entry)
+    //   同: Entry schema 不变 (直接复用)
     //   变: 无
-    //   新: backupPart4(timestamp) -> int
-    //       restorePart4(backupId, timestamp)
+    //   新: backup(timestamp) -> int
+    //       restore(backupId, timestamp)
     //       内部要存历史快照 + 单调递增 backupId
     //       restore 时 TTL 保留剩余量, 不重置 (见 README 的 Part 4 陷阱)
     //
-    // 现在 5 个方法全是 stub —— 等你完成 Part 3 后:
-    //   putPart4 / getPart4 / scanPart4 会套壳到 Part 3
-    //   你只需要写 backupPart4 / restorePart4
+    // ★ 复用: put / get / scan 跟 Part 3 完全一样, 直接搬。
 
-    private record EntryPart4(String value, Integer expireAt) {}
-    private final Map<String, EntryPart4> mapPart4 = new HashMap<>();
+    public static class DbPart4 {
+        record Entry(String value, Integer expireAt) {}
+        record BackupEntry(Integer timestamp, Map<String, Entry> db){};
+        Map<String, Entry> db = new HashMap<>();
+        List<BackupEntry> list = new ArrayList<>();
 
-    public void putPart4(String key, String value, int timestamp) {
-        throw new UnsupportedOperationException("TODO: Part 4 — 等 Part 3 done 后展开");
-    }
+        public void put(String key, String value, int timestamp) {
+            db.put(key, new Entry(value, null));
+        }
 
-    public void putPart4(String key, String value, int timestamp, int ttlSeconds) {
-        throw new UnsupportedOperationException("TODO: Part 4 — 等 Part 3 done 后展开");
-    }
+        public void put(String key, String value, int timestamp, int ttlSeconds) {
+            db.put(key, new Entry(value, timestamp + ttlSeconds));
+        }
 
-    public Optional<String> getPart4(String key, int timestamp) {
-        throw new UnsupportedOperationException("TODO: Part 4 — 等 Part 3 done 后展开");
-    }
+        public Optional<String> get(String key, int timestamp) {
+            if (db.get(key) == null || (db.get(key).expireAt() != null && db.get(key).expireAt() <= timestamp) ) return Optional.empty();
+            return Optional.of(db.get(key).value());
+        }
 
-    public String scanPart4(String prefix, int timestamp) {
-        throw new UnsupportedOperationException("TODO: Part 4 — 等 Part 3 done 后展开");
-    }
+        public String scan(String prefix, int timestamp) {
+            List<String> keys = new ArrayList<>();
+            for (Map.Entry<String, Entry> entry : db.entrySet()) {
+                String key = entry.getKey();
+                Entry e = entry.getValue();
+                if (key.startsWith(prefix) && (e.expireAt() == null || timestamp < e.expireAt())) {
+                    keys.add(key);
+                }
+            }
+            Collections.sort(keys);
+            StringBuilder sb = new StringBuilder();
+            for (String key : keys) {
+                if (sb.length() > 0) sb.append(", ");
+                sb.append(key).append("(").append(db.get(key).value()).append(")");
+            }
+            return sb.toString();
+        }
 
-    public int backupPart4(int timestamp) {
-        throw new UnsupportedOperationException("TODO: Part 4 — 等 Part 3 done 后展开");
-    }
+        public int backup(int timestamp) {
 
-    public void restorePart4(int backupId, int timestamp) {
-        throw new UnsupportedOperationException("TODO: Part 4 — 等 Part 3 done 后展开");
+            Map<String, Entry> dbCopy = new HashMap<>();
+            for (Map.Entry<String, Entry> entry : db.entrySet()) {
+                String key = entry.getKey();
+                String val = entry.getValue().value();
+                Integer expireAt = entry.getValue().expireAt();
+                if (expireAt != null && expireAt <= timestamp ) continue;
+                dbCopy.put(key, new Entry(val, expireAt));
+            }
+
+            list.add(new BackupEntry(timestamp, dbCopy));
+            return list.size() - 1;
+        }
+
+        public void restore(int backupId, int timestamp) {
+            BackupEntry backup = list.get(backupId);
+            int timeDiff = timestamp - backup.timestamp(); // we need to deduct this much for each entry in backup
+            Map<String, Entry> backupDb = backup.db();
+            Map<String, Entry> newDb = new HashMap<>();
+
+            for (Map.Entry<String, Entry> entry : backupDb.entrySet()) {
+                String key = entry.getKey();
+                String val = entry.getValue().value();
+                Integer expireAt = entry.getValue().expireAt();
+                if (expireAt == null) {
+                    newDb.put(key, new Entry(val, null));
+                } else {
+                    newDb.put(key, new Entry(val, expireAt + timeDiff));
+                }
+            }
+            this.db = newDb;
+        }
     }
 
     // ====================================================================
@@ -262,31 +369,55 @@ public class InMemoryDatabase {
     //   5. Copy-on-write —— 读完全无锁, 写代价高; 适合 read-heavy
     //   面试官最常追问: "如果 99% 是 get, 1% 是 put, 选哪个? 反过来呢?"
     //
-    // 你要写的: 把 Part 4 的所有方法套一遍, 加上你选的并发策略.
-    // (Entry 是不可变 record, 这是优势 —— 引用换原子换, 内容不会被改坏)
+    // 一个实用的 hybrid 方案:
+    //   - db 用 ConcurrentHashMap, 保证单 key 的 get/put 是线程安全的。
+    //   - Entry 是 immutable record, 所以单个 key 不会出现 value/expireAt 撕裂。
+    //   - get 直接读 ConcurrentHashMap, 不拿全局锁, 最大化读可用性。
+    //   - put 拿 snapshotLock.readLock(), 然后写 ConcurrentHashMap:
+    //       多个 put 可以并发; 但 backup/restore 想做全局快照时能挡住 put。
+    //   - backup 拿 snapshotLock.writeLock(), 阻止 put/restore, 然后 copy db:
+    //       这样 backup 是某个时间点的一致快照。
+    //   - restore 也拿 snapshotLock.writeLock(), 先构造新 map, 再一次性替换 db 引用。
+    //       如果用引用替换, db 不能是 final; 应该是 volatile ConcurrentHashMap<String, Entry>。
+    //   - scan 有两种选择:
+    //       (a) 接受 weakly-consistent scan: 不拿全局锁, 直接扫 ConcurrentHashMap。
+    //       (b) 要强一致 scan: 像 backup 一样拿 writeLock 或短锁内 copy snapshot。
+    //
+    // 这套方案的 trade-off:
+    //   - 比所有方法都用 ReadWriteLock 更高并发: get 不被 put 阻塞, 多个 put 也可并发。
+    //   - 比纯 ConcurrentHashMap 更强: backup/restore 有全局一致性。
+    //   - 复杂度更高: 锁的语义不是 "read method 拿 readLock", 而是把 readLock 当作
+    //     "normal mutation allowed" 的共享门闩, writeLock 当作 "global snapshot barrier"。
+    //
+    // ★ 复用: 业务逻辑全部跟 Part 4 一样 —— 本 Part 只换并发策略。
 
-    public void putPart5(String key, String value, int timestamp) {
-        throw new UnsupportedOperationException("TODO: Part 5 — 加并发安全");
-    }
+    public static class DbPart5 {
+        record Entry(String value, Integer expireAt) {}
+        final Map<String, Entry> db = new ConcurrentHashMap<>();
 
-    public void putPart5(String key, String value, int timestamp, int ttlSeconds) {
-        throw new UnsupportedOperationException("TODO: Part 5 — 加并发安全");
-    }
+        public void put(String key, String value, int timestamp) {
+            
+        }
 
-    public Optional<String> getPart5(String key, int timestamp) {
-        throw new UnsupportedOperationException("TODO: Part 5 — 加并发安全");
-    }
+        public void put(String key, String value, int timestamp, int ttlSeconds) {
+            throw new UnsupportedOperationException("TODO: Part 5 — 加并发安全");
+        }
 
-    public String scanPart5(String prefix, int timestamp) {
-        throw new UnsupportedOperationException("TODO: Part 5 — 加并发安全");
-    }
+        public Optional<String> get(String key, int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 5 — 加并发安全");
+        }
 
-    public int backupPart5(int timestamp) {
-        throw new UnsupportedOperationException("TODO: Part 5 — 加并发安全");
-    }
+        public String scan(String prefix, int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 5 — 加并发安全");
+        }
 
-    public void restorePart5(int backupId, int timestamp) {
-        throw new UnsupportedOperationException("TODO: Part 5 — 加并发安全");
+        public int backup(int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 5 — 加并发安全");
+        }
+
+        public void restore(int backupId, int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 5 — 加并发安全");
+        }
     }
 
     // ====================================================================
@@ -295,7 +426,7 @@ public class InMemoryDatabase {
     // 与 Part 5 比:
     //   同: 对外接口不变 (get/scan 仍然按 expireAt 过滤)
     //   变: 加一个后台线程, 主动删除已过期的 entry —— 不再依赖 lazy delete
-    //   新: startEvictorPart6() / stopEvictorPart6() 控制后台线程
+    //   新: startEvictor() / stopEvictor() 控制后台线程
     //
     // 问题陈述:
     //   Part 3 的 lazy delete: 过期 entry 一直占着内存, 除非有人 get/scan 撞上.
@@ -309,22 +440,43 @@ public class InMemoryDatabase {
     //      被覆盖/删除的 entry 会留在 PQ 里成为 "幽灵", 需要懒清理
     //   4. Timing wheel (时间轮) —— 适合大量短 TTL, 实现复杂
     //   5. 跟 Part 5 并发结合: 清理线程拿什么锁? 跟 put 怎么不打架?
-    //
-    // 还要讨论:
-    //   - 清理频率 (每 100ms 一轮? 每 1s? 自适应?)
-    //   - 清理预算 (每轮最多删 N 个, 避免阻塞)
-    //   - 如何测试? (mock 时钟? 或者 sleep + assert?)
 
-    public void startEvictorPart6() {
-        throw new UnsupportedOperationException("TODO: Part 6 — 启动后台清理线程");
+    public static class DbPart6 {
+        record Entry(String value, Integer expireAt) {}
+        final Map<String, Entry> db = new ConcurrentHashMap<>();
+
+        public void put(String key, String value, int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 6");
+        }
+
+        public void put(String key, String value, int timestamp, int ttlSeconds) {
+            throw new UnsupportedOperationException("TODO: Part 6");
+        }
+
+        public Optional<String> get(String key, int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 6");
+        }
+
+        public String scan(String prefix, int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 6");
+        }
+
+        public int backup(int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 6");
+        }
+
+        public void restore(int backupId, int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 6");
+        }
+
+        public void startEvictor() {
+            throw new UnsupportedOperationException("TODO: Part 6 — 启动后台清理线程");
+        }
+
+        public void stopEvictor() {
+            throw new UnsupportedOperationException("TODO: Part 6 — 停止后台清理线程");
+        }
     }
-
-    public void stopEvictorPart6() {
-        throw new UnsupportedOperationException("TODO: Part 6 — 停止后台清理线程");
-    }
-
-    // put/get/scan 继续沿用 Part 5 的并发安全版本 —— 这里就不再重复列 stub,
-    // 因为 Part 6 的核心是后台线程, 不是新 API.
 
     // ====================================================================
     // PART 7  —  持久化 / WAL (write-ahead log)                     [⚠ TODO]
@@ -333,7 +485,7 @@ public class InMemoryDatabase {
     //   同: 内存数据结构和并发模型基本一致
     //   变: 每次写操作 (put / restore) 在改内存前先 append 到日志文件
     //       进程重启时 replay 日志, 重建内存状态
-    //   新: 构造函数 (或 init) 接收一个 log 文件路径; flushPart7() 强制 fsync
+    //   新: 构造函数接收一个 log 文件路径; flush() 强制 fsync
     //
     // 问题陈述:
     //   现在 backup 只是内存快照, 进程崩了什么都没了.
@@ -344,29 +496,44 @@ public class InMemoryDatabase {
     //      - 每次 put 都 fsync —— 最安全, 吞吐量崩塌 (磁盘 IOPS 限制)
     //      - 批量 fsync (每 100ms 一次) —— 折中, 但崩溃可能丢最近 100ms 的写
     //      - 完全异步 —— 最快, 崩溃可能丢更多
-    //      面试官常追问: "Coinbase 一笔订单写入丢了能接受吗? 那 100ms 呢?"
-    //   2. Log 压缩:
-    //      - 老的 put 被新的 put 覆盖后, 老的记录还在日志里 —— 日志会无限增长
-    //      - 周期性 compaction: 把当前快照 dump 出来, 删掉之前的 log
-    //      - 跟 Part 4 的 backup 怎么结合? backup 可以充当 compaction checkpoint?
-    //   3. Restart 时:
-    //      - 从最新 backup 加载, 再 replay backup 之后的 log
-    //      - 如何判断 log 文件本身没坏? (checksum / CRC)
-    //   4. 跟 Part 5 并发结合:
-    //      - 多个线程同时 put, 写 log 的顺序怎么定? (单写线程串行化, 还是各自加 sequence number?)
-    //
-    // 这是开放设计题, 不强制方法签名. 给两个建议入口:
+    //   2. Log 压缩: 老的 put 被覆盖后日志无限增长 —— 需要定期 compaction
+    //   3. 跟 Part 5 并发结合: 多线程 put 写 log 的顺序怎么定?
 
-    public void putPart7(String key, String value, int timestamp) {
-        throw new UnsupportedOperationException("TODO: Part 7 — 加 WAL 持久化");
-    }
+    public static class DbPart7 {
+        record Entry(String value, Integer expireAt) {}
+        final Map<String, Entry> db = new ConcurrentHashMap<>();
 
-    public Optional<String> getPart7(String key, int timestamp) {
-        throw new UnsupportedOperationException("TODO: Part 7 — 加 WAL 持久化");
-    }
+        public DbPart7(String walPath) {
+            throw new UnsupportedOperationException("TODO: Part 7 — 加 WAL 持久化");
+        }
 
-    public void flushPart7() {  // 强制把 buffer 中的 log 落盘
-        throw new UnsupportedOperationException("TODO: Part 7 — fsync");
+        public void put(String key, String value, int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 7 — 加 WAL 持久化");
+        }
+
+        public void put(String key, String value, int timestamp, int ttlSeconds) {
+            throw new UnsupportedOperationException("TODO: Part 7 — 加 WAL 持久化");
+        }
+
+        public Optional<String> get(String key, int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 7 — 加 WAL 持久化");
+        }
+
+        public String scan(String prefix, int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 7 — 加 WAL 持久化");
+        }
+
+        public int backup(int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 7 — 加 WAL 持久化");
+        }
+
+        public void restore(int backupId, int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 7 — 加 WAL 持久化");
+        }
+
+        public void flush() {
+            throw new UnsupportedOperationException("TODO: Part 7 — fsync");
+        }
     }
 
     // ====================================================================
@@ -375,36 +542,46 @@ public class InMemoryDatabase {
     // 与 Part 7 比:
     //   同: 每个 shard 内部还是 Part 1-7 那一套
     //   变: 单机内存装不下了, key 空间按 hash 分到 N 个 shard
-    //   新: ShardedDatabasePart8 包装 N 个 InMemoryDatabase 实例; 按 hash(key) % N 路由
+    //   新: ShardedDb 包装 N 个 DbPart4 实例; 按 hash(key) % N 路由
     //
     // 问题陈述:
     //   假设 10 亿 key, 单机内存只有 64GB. 怎么分到 16 台机器上?
     //
     // 面试要讨论的取舍:
-    //   1. 哈希分片 (hash(key) % N):
-    //      - 简单, 负载均匀
-    //      - 但 N 变化时 (加机器/坏机器), 几乎所有 key 都要搬 —— 灾难
-    //   2. 一致性哈希 (consistent hashing):
-    //      - 节点上下线只搬 1/N 的 key
-    //      - 但要解决 hot spot (虚拟节点)
-    //   3. 范围分片 (range sharding):
-    //      - scan 友好 (prefix scan 可能只命中 1-2 个 shard)
-    //      - 但容易热点 (新写都集中在一个 range)
-    //   4. 跨 shard 操作怎么办:
-    //      - scan(prefix): 要 scatter 到所有可能 shard, gather 排序 —— 还能保持 O(prefix+output)?
-    //      - backup: 全局一致快照需要协调 (类似 distributed snapshot, Chandy-Lamport)
-    //              还是接受 "每个 shard 各自 backup, 时间点略有差异"?
-    //   5. 跨 shard 的 TTL 后台清理: 各 shard 各自跑, 还是中心化协调?
+    //   1. 哈希分片 (hash(key) % N): 简单均匀, 但 N 变化时几乎所有 key 都要搬
+    //   2. 一致性哈希: 节点上下线只搬 1/N 的 key; 要解决 hot spot (虚拟节点)
+    //   3. 范围分片: scan 友好, 但容易热点
+    //   4. 跨 shard scan: scatter 到所有可能 shard, gather 排序
+    //   5. 跨 shard backup: 全局一致快照需要协调 (类似 Chandy-Lamport)
     //
     // 这道题答完了基本就是设计一个简化版 Redis Cluster.
-    // 不强求写代码 —— 跟面试官讨论清楚就够; 真写就写一个 1 文件的 router.
+    // 不强求写代码 —— 跟面试官讨论清楚就够; 真写就写一个 router。
 
-    // 建议入口 (写不写都可以):
-    //
-    //   static class ShardedDatabasePart8 {
-    //       private final InMemoryDatabase[] shards;
-    //       ShardedDatabasePart8(int n) { ... }
-    //       private InMemoryDatabase shardFor(String key) { ... }
-    //       // 路由 put/get; 实现 cross-shard scan/backup
-    //   }
+    public static class ShardedDb {
+        private final DbPart4[] shards;
+
+        public ShardedDb(int n) {
+            throw new UnsupportedOperationException("TODO: Part 8 — 初始化 N 个 shard");
+        }
+
+        private DbPart4 shardFor(String key) {
+            throw new UnsupportedOperationException("TODO: Part 8 — hash(key) % N 路由");
+        }
+
+        public void put(String key, String value, int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 8");
+        }
+
+        public Optional<String> get(String key, int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 8");
+        }
+
+        public String scan(String prefix, int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 8 — scatter / gather across shards");
+        }
+
+        public int backup(int timestamp) {
+            throw new UnsupportedOperationException("TODO: Part 8 — coordinate cross-shard snapshot");
+        }
+    }
 }

@@ -3,28 +3,71 @@ import java.util.*;
 import org.w3c.dom.Node;
 
 /**
- * 4-part Coinbase interview practice — Currency Exchange.
+ * Coinbase interview practice — Currency Exchange  (8 parts).
+ *
+ * ════════════════════════════════════════════════════════════════════════
+ *  背景故事 (BACKGROUND) —— 读这里就够入手, 不需要懂外汇/图论
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ *  在一个交易平台 (比如 Coinbase) 上, 用户手里有各种货币: 美元 (USD)、欧元
+ *  (EUR)、英镑 (GBP)、日元 (JPY)…… 平台维护着两两之间的 "汇率 (rate)":
+ *  比如 "1 USD 能换 0.9 EUR" 就记成 USD→EUR = 0.9。用户想知道:
+ *  "我手里 100 USD, 能换成多少 GBP?"
+ *
+ *  把货币看成一张图: 每种货币是一个 "节点", 每条汇率是一条 "边"。换汇就是
+ *  从起点货币沿着边走到终点货币, 一路把金额乘上每条边的 rate。
+ *
+ *      USD ──0.9──▶ EUR ──0.85──▶ GBP
+ *      100 USD → 100*0.9=90 EUR → 90*0.85=76.5 GBP
+ *
+ *  这道题层层加码: 先做最朴素的换算 (Part 1), 再找 "对用户最划算" 的路径
+ *  (Part 2), 然后汇率不再是一次性给定而是实时流式更新 (Part 3), 再到检测
+ *  "套利机会" (Part 4), 后面几个 Part 升级到并发、预计算、多交易所报价带
+ *  过期时间、历史回查等真实工程问题。
+ *
+ *  几个术语 (后面注释会用到, 先混个脸熟):
+ *    · currency   : 一种货币, 用字符串代号表示 ("USD" / "EUR" / ...)
+ *    · rate       : 汇率, from→to=r 表示 "1 单位 from 换 r 单位 to"
+ *    · 双向边      : 给了 from→to=r, 就隐含反向 to→from=1/r (本题贯穿的约定)
+ *    · convert    : 把一笔金额从 from 货币换成 to 货币 (沿路径连乘 rate)
+ *    · best rate  : 所有可达路径里乘积最大的那条 (对用户最有利)
+ *    · arbitrage  : 套利 —— 存在一个环, 沿环走一圈乘积 > 1, 凭空变多钱
+ *    · stale      : 报价过期 —— 超过 TTL 没有新报价, 不可再信任 (Part 7)
+ *
+ * ════════════════════════════════════════════════════════════════════════
  *
  * 每个 Part 是独立的 class，后缀 PartN。先无脑独立写，做完再讨论抽公共逻辑。
  *
  * 这不是产品代码，是练习代码 —— 让你能专注当前 Part 而不破坏已完成的部分。
+ *
+ * (注: Part 1/2 的 class 体内残留了一些个人解题笔记, 那是上一次练习的草稿, 不是
+ *  题面的一部分; 真正的题面是每个 Part 上方的 ═══ 注释块。)
  */
 public class CurrencyExchange {
 
     // ====================================================================
     // PART 1  —  Basic Conversion                                   [⚠ TODO]
     // ====================================================================
-    // 输入双向汇率 ["from","to","rateStr"], DFS 找一条可达路径换算金额.
+    // 场景: 最基础的换汇 —— 给你一组汇率, 用户问 "from 货币的 amount, 换成 to
+    //       货币是多少?" 你要找出一条从 from 到 to 的可达路径, 沿路把金额连乘
+    //       每条边的 rate, 返回结果。中转几跳都行, 只要走得通。
+    //
+    // 输入: 构造时传入 List<String[]>, 每条是 ["from", "to", "rateStr"]
+    //       (rate 是字符串, 需自行解析成 double)。
+    // 接口: convert(from, to, amount) -> double。
     //
     //   rates = [["USD","EUR","0.9"], ["EUR","GBP","0.85"]]
-    //   convert("USD","GBP",100) → 76.5
-    //   convert("USD","USD",50)  → 50
-    //   convert("USD","JPY",1)   → NoSuchElementException
+    //   convert("USD","GBP",100) → 76.5   (USD→EUR→GBP: 100*0.9*0.85)
+    //   convert("USD","EUR",100) → 90.0   (直连边)
+    //   convert("EUR","USD",100) → 111.11…(反向边 = 1/0.9)
+    //   convert("USD","USD",50)  → 50     (同币种恒等, 即使不在图里也成立)
     //
-    // 注意:
-    //   - rate 双向: USD→EUR=0.9 隐含 EUR→USD=1/0.9
-    //   - from==to: 直接返 amount, 不要求该币种在图里
-    //   - 未知币种 / 不可达 → NoSuchElementException
+    // 注意 / 边界:
+    //   - rate 双向: 给了 USD→EUR=0.9 就隐含 EUR→USD=1/0.9
+    //   - from == to: 直接返 amount, 不要求该币种出现在图里
+    //   - 未知币种 (from 或 to 不在图里) → 抛 NoSuchElementException
+    //   - 两个货币在图里但不连通 (不同连通分量) → 抛 NoSuchElementException
+    //   - 图可能有环, 别绕死循环
 
     public static class ConverterPart1 {
         private Map<String, Map<String, Double>> graph;
@@ -88,13 +131,24 @@ public class CurrencyExchange {
     // ====================================================================
     // PART 2  —  Best Rate                                          [⚠ TODO]
     // ====================================================================
-    // 找乘积最大的路径 (对用户最有利).
+    // 场景: Part 1 随便找一条可达路径就行; 这一 Part 要找 "对用户最有利" 的那条 ——
+    //       即所有从 from 到 to 的路径里, rate 连乘积最大的一条。同样起终点可能
+    //       有多条路 (直连一条、绕一圈中转一条), 取乘积最大的结果返回。
+    //
+    // 接口: convertBest(from, to, amount) -> double。双向边规则同 Part 1。
     //
     //   rates = [["USD","EUR","0.9"], ["EUR","GBP","0.85"], ["USD","GBP","0.7"]]
-    //   convertBest("USD","GBP",100) → 76.5  (中转路径 0.9*0.85=0.765 比直连 0.7 好)
+    //   convertBest("USD","GBP",100) → 76.5
+    //         (中转 0.9*0.85=0.765 比直连 0.7 划算, 选中转)
     //
-    // 没有负权 (rate > 0), 可以 DFS+memo 或 relaxation.
-    // 图可能有环, 别死循环.
+    //   rates = [["USD","EUR","0.5"], ["EUR","GBP","0.5"], ["USD","GBP","0.9"]]
+    //   convertBest("USD","GBP",100) → 90.0
+    //         (这次直连 0.9 比中转 0.25 划算, 选直连)
+    //
+    // 注意 / 边界:
+    //   - from == to: 恒等, 返 amount
+    //   - 不可达 / 未知币种 → 抛 NoSuchElementException
+    //   - 所有 rate > 0; 图可能有环, 别死循环
 
     public static class BestRateConverterPart2 {
         private Map<String, Map<String, Double>> graph;
@@ -126,17 +180,25 @@ public class CurrencyExchange {
     // ====================================================================
     // PART 3  —  Streaming Updates                                  [⚠ TODO]
     // ====================================================================
-    // 没有初始 rates, 边走边 update; convert 语义同 Part 1.
+    // 场景: 真实行情是实时变的 —— 构造时没有任何初始汇率, 汇率一条条地流式推进来,
+    //       你边收边建图; 随时可能有 convert 查询打进来。convert 的语义跟 Part 1
+    //       完全一样 (任意可达路径), 只是图是动态长出来的。
     //
-    //   c = new StreamingConverterPart3();
-    //   c.update("USD","EUR",0.9);
-    //   c.update("EUR","GBP",0.85);
+    // 接口: update(from, to, rate) 新增或覆盖一条边; convert(from, to, amount) 同 Part 1。
+    //
+    //   c.update("USD","EUR",0.9); c.update("EUR","GBP",0.85);
     //   c.convert("USD","GBP",100) → 76.5
-    //   c.update("USD","EUR",1.0);   // replace
-    //   c.convert("USD","GBP",100) → 85.0
+    //   c.update("USD","EUR",1.0);            // 覆盖旧的 0.9
+    //   c.convert("USD","GBP",100) → 85.0     // 用新 rate 重算
+    //   c.convert("EUR","USD",100) → 100.0    // 反向边跟着用 1/新rate
+    //   c.update("GBP","JPY",150.0);          // 新增边, 把新货币连进来
+    //   c.convert("USD","JPY",100) → 12750.0  // 100*1.0*0.85*150
     //
-    // update 既能新增边, 也能覆盖.
-    // 双向规则不变: update(A,B,r) 隐含 B→A=1/r.
+    // 注意 / 边界:
+    //   - update 既能新增边, 也能覆盖已有边 (同一对 (A,B) 再 update 取最新值)
+    //   - 双向规则不变: update(A,B,r) 隐含 B→A = 1/r
+    //   - 未知币种 / 不可达 → 抛 NoSuchElementException
+    //   - from == to 恒等, 即使图是空的也成立: empty.convert("USD","USD",7) → 7
 
     public static class StreamingConverterPart3 {
         public StreamingConverterPart3() {
@@ -155,13 +217,26 @@ public class CurrencyExchange {
     // ====================================================================
     // PART 4  —  Arbitrage Detection                                [⚠ TODO]
     // ====================================================================
-    // 是否存在乘积 > 1 的循环?
+    // 场景: "套利 (arbitrage)" 是指存在一个换汇环, 沿环走一圈回到起点货币, 金额
+    //       反而变多了 —— 也就是环上所有 rate 的乘积 > 1。这意味着你可以空手套利。
+    //       这一 Part 只问一个 yes/no: 当前这张汇率图里, 存不存在这样的环?
+    //
+    // 接口: 构造时给定全部 rates; hasArbitrage() -> boolean。
     //
     //   rates = [["USD","EUR","0.9"], ["EUR","GBP","0.85"], ["GBP","USD","1.4"]]
-    //   hasArbitrage() → true  (0.9 * 0.85 * 1.4 = 1.071)
+    //   hasArbitrage() → true   (0.9 * 0.85 * 1.4 = 1.071 > 1)
     //
-    // hint (不写在代码里): -log(rate) 边权 + Bellman-Ford 负权环.
-    // 双向边 A→B→A 乘积永远是 1, 不是套利; 真正套利环长度 ≥ 3.
+    //   rates = [["A","B","2.0"], ["B","C","3.0"], ["C","A","1/6"]]
+    //   hasArbitrage() → false  (2 * 3 * (1/6) = 1, 恰好等于 1 不算套利)
+    //
+    //   rates = [["USD","EUR","0.9"], ["EUR","GBP","0.85"]]
+    //   hasArbitrage() → false  (没有环)
+    //
+    // 注意 / 边界:
+    //   - 乘积必须严格 > 1 才算套利; 恰好 == 1 不算
+    //   - 双向边 A→B→A 的乘积永远是 1 (因为 B→A=1/(A→B)), 不算套利;
+    //     真正的套利环长度 ≥ 3
+    //   - 空图 → false
 
     public static class ArbitrageDetectorPart4 {
         public ArbitrageDetectorPart4(List<String[]> rates) {

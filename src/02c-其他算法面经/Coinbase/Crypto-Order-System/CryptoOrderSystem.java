@@ -1,4 +1,5 @@
 import java.util.*;
+import java.util.concurrent.*;
 
 /**
  * Coinbase interview practice — Crypto Order System (OMS)  (8 parts).
@@ -150,7 +151,7 @@ public class CryptoOrderSystem {
         }
 
         public void cancelOrder(String orderId) {
-            transformOrder(orderId, OrderState.CANCELLED,OrderState.ACTIVE, OrderState.PAUSED);
+            transformOrder(orderId, OrderState.CANCELLED, OrderState.ACTIVE, OrderState.PAUSED);
         }
 
         private void transformOrder(String orderId, OrderState toState, OrderState... allowedStates) {
@@ -355,40 +356,96 @@ public class CryptoOrderSystem {
     // (并发策略的取舍见 README。)
 
     public static class OmsPart5 {
+        // ★ 复用自 Part 4: 业务逻辑完全一样, 只做了 3 处线程安全升级 —
+        //   (1) HashMap -> ConcurrentHashMap  (2) HashSet -> ConcurrentHashMap.newKeySet()
+        //   (3) "读-改-写"的转移改用 computeIfPresent, 让一次状态转移原子执行。
+        //   getOrder / ordersInState* 用 CHM 的弱一致读, 无需加锁。
+        Map<String, Order> orders;
+        Map<String, Set<String>> ordersByUid;
         public OmsPart5() {
-            throw new UnsupportedOperationException("OmsPart5: not implemented");
+            this.orders = new ConcurrentHashMap<>();
+            this.ordersByUid = new ConcurrentHashMap<>();
         }
 
         public void placeOrder(String orderId, String userId, String symbol, long quantity) {
-            throw new UnsupportedOperationException("OmsPart5.placeOrder: not implemented");
+            Order order = new Order(orderId, userId, symbol, quantity, OrderState.ACTIVE);
+            // putIfAbsent 原子去重: 返回非 null 说明已存在
+            if (orders.putIfAbsent(orderId, order) != null) throw new IllegalArgumentException();
+            ordersByUid.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(orderId);
         }
 
         public Order getOrder(String orderId) {
-            throw new UnsupportedOperationException("OmsPart5.getOrder: not implemented");
+            return orders.get(orderId);
         }
 
         public void pauseOrder(String orderId) {
-            throw new UnsupportedOperationException("OmsPart5.pauseOrder: not implemented");
+            transformOrder(orderId, OrderState.PAUSED, OrderState.ACTIVE);
         }
 
         public void resumeOrder(String orderId) {
-            throw new UnsupportedOperationException("OmsPart5.resumeOrder: not implemented");
+            transformOrder(orderId, OrderState.ACTIVE, OrderState.PAUSED);
         }
 
         public void cancelOrder(String orderId) {
-            throw new UnsupportedOperationException("OmsPart5.cancelOrder: not implemented");
+            transformOrder(orderId, OrderState.CANCELLED, OrderState.ACTIVE, OrderState.PAUSED);
+        }
+
+        private void transformOrder(String orderId, OrderState toState, OrderState... allowedStates) {
+            // 教科书 CAS 重试循环 (lock-free): 读快照 -> 算新值 -> compare-and-set; 被抢先就重读重试。
+            while (true) {
+                Order current = orders.get(orderId);
+                if (current == null) return;                  // 等价于原来的 "order == null -> return"
+
+                boolean isAllowed = false;
+                for (OrderState allowedState : allowedStates) {
+                    if (allowedState == current.state()) {
+                        isAllowed = true;
+                        break;
+                    }
+                }
+                if (!isAllowed) throw new IllegalStateException();
+
+                Order next = new Order(current.orderId(), current.userId(),
+                                       current.symbol(), current.quantity(), toState);
+                // replace(k, old, new): 仅当当前值仍 == current 时才换, 返回 false 说明被别人改了 -> 重试
+                if (orders.replace(orderId, current, next)) return;
+            }
         }
 
         public int cancelAllOrdersForUser(String userId) {
-            throw new UnsupportedOperationException("OmsPart5.cancelAllOrdersForUser: not implemented");
+            int cancelledCount = 0;
+            // 注意: 不在一个大 compute 里嵌套, 而是逐个调各自原子的 cancelOrder。
+            for (String orderId : ordersByUid.getOrDefault(userId, Collections.emptySet())) {
+                Order order = getOrder(orderId);
+                if (order.state() == OrderState.ACTIVE || order.state() == OrderState.PAUSED) {
+                    cancelOrder(orderId);
+                    cancelledCount++;
+                }
+            }
+            return cancelledCount;
         }
 
         public List<Order> ordersInState(OrderState state) {
-            throw new UnsupportedOperationException("OmsPart5.ordersInState: not implemented");
+            // CHM 弱一致遍历: 每个 Order 不可变 => 每元素自洽; 无需加锁。
+            List<Order> ordersInState = new ArrayList<>();
+            for (String orderId : orders.keySet()) {
+                Order order = getOrder(orderId);
+                if (order.state() == state) {
+                    ordersInState.add(order);
+                }
+            }
+            return ordersInState;
         }
 
         public List<Order> ordersInStateForUser(OrderState state, String userId) {
-            throw new UnsupportedOperationException("OmsPart5.ordersInStateForUser: not implemented");
+            List<Order> ordersInState = new ArrayList<>();
+            for (String orderId : ordersByUid.getOrDefault(userId, Collections.emptySet())) {
+                Order order = getOrder(orderId);
+                if (order.state() == state) {
+                    ordersInState.add(order);
+                }
+            }
+            return ordersInState;
         }
     }
 

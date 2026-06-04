@@ -1,25 +1,73 @@
 import java.util.*;
 
 /**
- * 4-part Coinbase interview practice — Drone Delivery.
+ * Coinbase interview practice — Drone Delivery (8 parts).
+ *
+ * ════════════════════════════════════════════════════════════════════════
+ *  背景故事 (BACKGROUND) —— 读这里就够入手, 不需要任何配送/无人机背景
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ *  设想一条**笔直的送货路线**, 抽象成一根数轴: 仓库在原点 0, 收件人在 target.
+ *  路上散落着若干**充电站 / 起降点 (station)**, 位置用坐标表示, 升序排列。
+ *
+ *      0 ────●──────────●────────────▶ target
+ *      仓库  station    station       收件人
+ *
+ *  一名快递员从 0 出发往 target 走。两种移动方式:
+ *    · walk (步行): 自己走, 1 单位距离算 1 单位 walk 成本 —— 我们要最小化的就是它。
+ *    · fly  (无人机): 走到某个 station, 那里有无人机, 可以**免费**飞一段 (飞的距离
+ *                     不计入 walk 成本), 但一次最多飞 range 这么远, 落地后接着走。
+ *
+ *  起点 0 本身**不是 station** (Part 1-2 没有无人机), 所以一开始必须步行到第一个
+ *  station 才有飞机可用。核心目标: 把这趟配送的**步行总距离**降到最小。
+ *
+ *  题目逐 Part 加码: 单程 → 多包裹 → 每个 station 飞行距离不同 → 装箱 (背包) →
+ *  多无人机并发抢单 → 在线动态重规划 → 故障接管 → 地理分片调度。后面几个 Part
+ *  从"算几何距离"升级成"设计一个简化版 Uber/DoorDash 调度系统"。
+ *
+ *  术语 (后面注释会用到, 先混个脸熟):
+ *    · target   : 收件人坐标, 即本趟要到达的终点 (整条路线长度)
+ *    · station  : 路上的起降点坐标; 在这里可以让无人机带你飞一段
+ *    · range    : 无人机一次飞行能覆盖的最大距离
+ *    · walk     : 步行距离 = 成本, 所有 Part 求的都是"最小步行距离"
+ *    · fly      : 无人机飞行段, 不计入 walk 成本 (相当于免费位移)
+ *    · order    : 一个待配送的包裹 (Part 5 起, 多无人机抢的就是 order)
+ *    · drone    : 无人机 / 也指 Part 5 起并发抢单的一个工作线程
+ *    · dispatcher / planner : 把 order 分配给 drone 的调度器
+ *
+ * ════════════════════════════════════════════════════════════════════════
+ *
+ * 题面直接写在每个 Part 上方 —— 读代码就能读题, 不用切到别处。
  *
  * 每个 Part 是独立的 class, 后缀 PartN. 先无脑独立写, 做完再讨论抽公共逻辑.
- *
  * 这不是产品代码, 是练习代码 —— 让你能专注当前 Part 而不破坏已完成的部分.
+ *
+ * 逐步加约束; 面试时一次只给一个 Part, 做完再放下一个。
  */
 public class DroneDelivery {
 
     // ====================================================================
     // PART 1  —  Single Drone, Fixed Range                          [⚠ TODO]
     // ====================================================================
-    // 一次配送, 单一 drone range. 起点 0, 终点 target, 中间 stations 升序.
-    // 起点不是 station (没飞机), 所以 0→stations[0] 全程 walk.
-    // 在 stations[i] 起飞, 最多飞 range, 落地后走到下一个 station 或 target.
+    // 场景: 一趟配送, 全程只有一种无人机, 飞行距离固定为 range. 求最小步行距离。
     //
+    // 规则:
+    //   - 起点 0 不是 station (那里没飞机), 所以 0→stations[0] 这一段只能 walk。
+    //   - 到了某个 station 就可以起飞, 一次最多飞 range; 落地后继续往前 (走或再到
+    //     下一个 station 起飞)。飞行段不计 walk 成本。
+    //   - stations 升序给出。返回值是 long (步行总距离)。
+    //
+    // walkDistance(target, stations, range) -> long
+    //
+    // 例 (摘自测试):
     //   target=20, stations=[5,15], range=10
-    //     → walk 0→5 (5), fly 5→15, walk 15→20 (5). 总=10.
-    //   target=20, stations=[], range=10  → walk 全部 = 20.
-    //   target=10, stations=[5], range=10 → walk 0→5 = 5.
+    //     → walk 0→5 (5), fly 5→15, walk 15→20 (5). 总 = 10
+    //   target=20, stations=[],     range=10  → 没飞机, 全程步行 = 20
+    //   target=10, stations=[5],    range=10  → walk 0→5 (5), fly 5→10. 总 = 5
+    //   target=30, stations=[5,15], range=5
+    //     → walk 0→5, fly 5→10, walk 10→15, fly 15→20, walk 20→30. 总 = 20
+    //   target=0,  stations=[],     range=10  → 0 (终点即起点)
+    //   target=100, stations=[50],  range=1000 → 必须先走到 50, 再一飞到底. 总 = 50
 
     public static class DronePart1 {
         public static long walkDistance(int target, int[] stations, int range) {
@@ -30,12 +78,21 @@ public class DroneDelivery {
     // ====================================================================
     // PART 2  —  Multiple Packages                                  [⚠ TODO]
     // ====================================================================
-    // 与 Part 1 比:
-    //   同: stations / range 不变, 单次配送规则不变
-    //   变: 无
-    //   新: 多个 target, 每次独立从 0 出发, 求总 walk
+    // 场景: 同一组 station / 同一种无人机, 现在要送多个包裹 (多个 target)。
+    //       每个包裹都是一趟独立的、从仓库 0 重新出发的配送 —— 没有"顺路捎带"
+    //       这种优化。求所有配送的步行距离之和。
     //
-    // 没有 "顺路" 优化 —— 每个 target 都是独立的一次完整配送.
+    // 与 Part 1 比: stations / range / 单趟规则都不变; 只是把单个 target 换成数组。
+    //
+    // totalWalkDistance(targets, stations, range) -> long
+    //
+    // 例 (摘自测试):
+    //   targets=[10,20], stations=[5,15], range=10
+    //     → 送 10: walk 5 + fly 5→10        = 5
+    //       送 20: walk 5 + fly 5→15 + walk 5 = 10
+    //       合计 = 15
+    //   targets=[],   stations=[5,15], range=10 → 0
+    //   targets=[20], stations=[5,15], range=10 → 10 (单个 target 等同 Part 1)
 
     public static class DronePart2 {
         public static long totalWalkDistance(int[] targets, int[] stations, int range) {
@@ -46,14 +103,28 @@ public class DroneDelivery {
     // ====================================================================
     // PART 3  —  Per-Drone Range                                    [⚠ TODO]
     // ====================================================================
-    // 每个 station 自带一架 drone, range 各不相同:
-    //   ranges[i] 是 stations[i] 起飞时能飞的距离
-    //   globalStartRange 是起点自带的 drone (没有就传 0)
+    // 场景: 现在每个 station 自带的无人机飞行距离各不相同, 而且起点也可能自带
+    //       一架无人机。你要在"哪几个 station 起飞、哪些直接走过去"之间做选择,
+    //       使总步行距离最小。
     //
-    // 不强制每个 station 都起飞 — 你可以选择跳过某个 station 直接走过去.
-    // 落地点不必是 station.
+    // 规则:
+    //   - ranges[i] = 在 stations[i] 起飞能飞的距离 (与 stations 一一对应)。
+    //   - globalStartRange = 起点 0 自带无人机的飞行距离; 没有就传 0。
+    //   - 不强制每个 station 都起飞 —— 可以跳过某个 station 直接步行经过它。
+    //   - 落地点不必正好是某个 station (飞到半路落地继续走也行)。
     //
-    // 这是个决策问题 (greedy / DP), 自己想.
+    // walkDistance(target, stations, ranges, globalStartRange) -> long
+    //
+    // 例 (摘自测试):
+    //   target=10, stations=[5],  ranges=[5], globalStartRange=0
+    //     → walk 0→5 (5), fly 5→10. 总 = 5
+    //   target=10, stations=[],   ranges=[],  globalStartRange=10
+    //     → 起点直接飞 0→10. 总 = 0
+    //   target=15, stations=[],   ranges=[],  globalStartRange=0
+    //     → 哪儿都没飞机, 全程步行 = 15
+    //   target=30, stations=[5,10,20], ranges=[20,1,2], globalStartRange=0
+    //     → walk 0→5 (5), 在 5 起飞 (range=20) 飞到 25, walk 25→30 (5). 总 = 10
+    //       (中途 range=1 / range=2 的两个 station 直接跳过不起飞)
 
     public static class DronePart3 {
         public static long walkDistance(int target, int[] stations, int[] ranges, int globalStartRange) {
@@ -64,13 +135,22 @@ public class DroneDelivery {
     // ====================================================================
     // PART 4  —  0/1 Knapsack (Packing)                             [⚠ TODO]
     // ====================================================================
-    // 与 Part 1-3 是独立 sub-problem (面试里也是单独问的).
-    // n 件 item, 每件最多选一次, 总 weight <= capacity, 求最大 value.
+    // 场景: 给无人机装货箱。有 n 件待装物品, 每件有重量 weight 和价值 value,
+    //       货箱总承重上限是 capacity。每件物品**最多装一次** (0/1, 不能拆、不能
+    //       装两份)。在不超重的前提下, 求能装走的最大总价值。
     //
-    //   weights=[1,2,3], values=[6,10,12], capacity=5  → 22 (选后两个)
+    //       这是个跟 Part 1-3 互相独立的子问题 (面试里也常单独出)。
     //
-    // 经典 2D DP: dp[i][c] = 前 i 件 item, capacity 为 c 时的最大 value.
-    // 也可以滚动到 1D, 注意 0/1 (倒序遍历 c) vs unbounded (正序).
+    // maxValue(weights, values, capacity) -> long
+    //   weights[i] 与 values[i] 一一对应; capacity 为承重上限。
+    //
+    // 例 (摘自测试):
+    //   weights=[1,2,3], values=[6,10,12], capacity=5 → 22 (选第 2、3 件: 重 2+3=5, 值 10+12)
+    //   weights=[1,2,3], values=[6,10,12], capacity=0 → 0   (装不下任何东西)
+    //   weights=[],      values=[],        capacity=10 → 0  (没有物品)
+    //   weights=[5],     values=[10],      capacity=5 → 10  (恰好装下)
+    //   weights=[6],     values=[10],      capacity=5 → 0   (唯一物品超重)
+    //   weights=[2],     values=[5],       capacity=4 → 5   (0/1: 同一件不能拿两次, 不是 10)
 
     public static class PackingPart4 {
         public static long maxValue(int[] weights, int[] values, int capacity) {

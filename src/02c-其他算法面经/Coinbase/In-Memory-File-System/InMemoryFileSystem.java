@@ -10,6 +10,21 @@ import java.util.*;
  *  current one.
  *
  *  ----------------------------------------------------------------------
+ *   术语 (GLOSSARY) —— 先混个脸熟, 后面注释会用到
+ *   ----------------------------------------------------------------------
+ *   · path        : 绝对路径字符串, 如 "/", "/a", "/a/b/file.txt"
+ *   · component   : 路径里两个 '/' 之间的一段名字, 如 "/a/b" 拆成 ["a","b"]
+ *   · directory   : 目录, 内部装一组子项 (子目录 + 文件)
+ *   · file        : 文件, 内部装一段文本 content
+ *   · node        : 树上的一个结点, 要么是目录要么是文件 (你自己定义怎么存)
+ *   · root        : 根目录 "/" —— 整棵树的起点
+ *   · parent      : 某路径去掉最后一段后剩下的目录, 如 "/a/b/c" 的 parent 是 "/a/b"
+ *   · subtree     : 一个目录结点连同它底下所有后代, 整体看作一棵子树
+ *   · ls / mkdir / mv / rm / cp : 列目录 / 建目录 / 移动 / 删除 / 拷贝
+ *
+ *  注: 题面用英文写, 术语表给中文对照; 两边说的是同一件事。
+ *
+ *  ----------------------------------------------------------------------
  *   PATH FORMAT (applies to every method, every Part)
  *   ----------------------------------------------------------------------
  *   - Always absolute, Unix-style, starting with '/'.
@@ -93,16 +108,32 @@ public class InMemoryFileSystem {
     // ====================================================================
     // PART 1  —  ls / mkdir / addContentToFile / readContentFromFile [⚠ TODO]
     // ====================================================================
+    // 场景: 实现一个最朴素的 Unix 风格文件系统 (这就是 LC 588): 能建目录、
+    //       建文件并写内容、读内容、列出某个目录或文件。路径全是绝对路径,
+    //       格式见文件顶部 PATH FORMAT (输入保证合法, 不用防御性校验)。
+    //
     // 同: (first part)
     // 变: (first part)
     // 新: 一个 tree node 表示（自己决定怎么存 children、怎么区分 file/dir），
     //     以及 4 个公开方法。
     //
     // 你要写的:
-    //   - lsPart1(path) -> List<String>     文件返 [filename]，目录返字典序子项
-    //   - mkdirPart1(path)                  递归建中间目录
-    //   - addContentToFilePart1(path, content)  不存在则建，存在则追加
-    //   - readContentFromFilePart1(path) -> String
+    //   - lsPart1(path) -> List<String>     文件返 [filename]，目录返字典序子项,
+    //                                       空目录返空 list
+    //   - mkdirPart1(path)                  建目录, 缺失的中间目录一并建; 已存在则什么都不做
+    //   - addContentToFilePart1(path, content)  不存在则建文件(含缺失父目录), 存在则把 content 追加到末尾
+    //   - readContentFromFilePart1(path) -> String   返回文件内容
+    //
+    // 例 (取自测试):
+    //   ls("/")                              → []            (空根)
+    //   mkdir("/a/b/c"); ls("/")             → ["a"]
+    //   ls("/a/b")                           → ["c"]
+    //   ls("/a/b/c")                         → []            (叶子目录为空)
+    //   addContentToFile("/a/b/file.txt","hello"); read(...) → "hello"
+    //   addContentToFile("/a/b/file.txt"," world"); read(...) → "hello world"  (追加)
+    //   ls("/a/b/file.txt")                  → ["file.txt"]  (对文件 ls 返回单元素)
+    //   ls("/a/b")                           → ["c","file.txt"]  (子项按字典序)
+    //   addContentToFile("/fresh/dir/new.txt","data")  → 自动建出 /fresh、/fresh/dir
     //
     // 自己定义你需要的字段 / 内部类。下面只给方法 stub —— 不剧透实现。
 
@@ -158,27 +189,46 @@ public class InMemoryFileSystem {
         return path.length() == 1 ? new String[0] : path.substring(1).split("/");
     }
 
-    // 你自己抽 helper：resolve(path) 纯读 / getOrCreateDir(path) 写允许 /
-    //                  parentPathOf(path) + nameOf(path) 拆路径
+    // getSegments(path) 已给好: "/" → []，"/a/b" → ["a","b"]。其余 helper 自己决定。
 
     // ====================================================================
     // PART 2  —  mv / rm / cp                                       [⚠ TODO]
     // ====================================================================
+    // 场景: 给文件系统加上三个最经典的操作 —— 移动 (mv)、删除 (rm)、拷贝 (cp)。
+    //       对象既可能是单个文件, 也可能是一整棵目录子树。
+    //
     // 同: tree node from Part 1（schema 不变，直接复用）
     // 变: 无
     // 新: mvPart2 / rmPart2 / cpPart2
     //     —— Part 2 的 ls/mkdir/addContent/read 是 thin wrapper，直接转 Part 1
     //
-    // 这三个放一起就是文件系统题最经典的 follow-up 三连，考的是同一个核心：
-    //   mv  = 移动语义：把子树 reference 从旧 parent 摘下、挂到新 parent。O(1)，不拷贝。
-    //   rm  = 删除语义：把子树 reference 从 parent 摘下即可，GC 自动回收。O(1)。
-    //   cp  = 拷贝语义：必须 DEEP COPY 整棵子树（递归新建 Node）。O(子树大小)。
-    // 一句话区分：mv/rm 只动一个引用；cp 要造一整棵新树。面试官就想听这个对比。
+    // 三个操作各自的 observable 语义 (这是面试官最想听你说清的对比):
+    //   mv(src, dest) : 把 src (文件或子树) 整个搬到 dest 这个新全路径。搬完
+    //                   src 原位置就没了, dest 出现且内容完全保留。
+    //                   注意 dest 是 "新的完整路径", 不是 "移动进某个目录"。
+    //   rm(path)      : 把 path (文件或整棵子树) 从它 parent 里去掉, 之后再 ls
+    //                   parent 看不到它。
+    //   cp(src, dest) : 把 src 复制一份到 dest。关键: 拷贝必须是 *独立* 的 ——
+    //                   复制完之后改 dest (改内容 / 加新子项), src 不能跟着变,
+    //                   反之亦然。这是测试明确验证的点 (deep copy)。
     //
     // 你要写的:
     //   - mvPart2(src, dest)
     //   - rmPart2(path)
-    //   - cpPart2(src, dest)   ← 注意必须 deep copy，不能跟 mv 一样挪 reference
+    //   - cpPart2(src, dest)   ← 注意拷贝后两边必须互不影响
+    //
+    // 例 (取自测试):
+    //   建 /a/b/f.txt="hi"; mv("/a/b/f.txt","/a/g.txt")
+    //     → read("/a/g.txt")="hi"; ls("/a/b")=[]           (移动文件, 内容保留)
+    //   建 /x/y/data="v"; mv("/x/y","/a/y")
+    //     → read("/a/y/data")="v"; ls("/x")=[]              (移动整棵子树)
+    //   mv("/r/old.txt","/r/new.txt")                       → 同目录改名
+    //   建 /d/x.txt; rm("/d/x.txt")                         → ls("/d")=[]
+    //   建 /d/sub/deep/leaf; rm("/d/sub")                   → 整棵子树消失, ls("/d")=[]
+    //   建 /c/orig.txt="base"; cp("/c/orig.txt","/c/dup.txt")
+    //     → 两份都在且都是 "base", 互相独立
+    //   cp("/c/srcDir","/c/dstDir"); 再往 dstDir 里改/加内容
+    //     → srcDir 不受影响 (深拷贝独立性)
     //
     // 简化前提（题面允许你假设）:
     //   - mv/cp: src 存在；dest.parent 存在；dest 不存在；src 不是 dest 祖先；src != dest
@@ -218,15 +268,21 @@ public class InMemoryFileSystem {
     // ====================================================================
     // PART 3  —  线程安全（最简情形：一把锁）                        [⚠ TODO]
     // ====================================================================
-    // 同: tree 结构、所有操作的语义都跟 Part 2 一样
-    // 变: 在 5 个公开方法外面包一层串行化
-    // 新: 一个 lock 字段（建议 java.util.concurrent.locks.ReentrantReadWriteLock）
-    //     和 5 个 Part 3 后缀的方法
+    // 场景: 多个线程同时调这套文件系统 —— 有人在 ls、有人在 mkdir、有人在 mv。
+    //       要让它在并发下不出错。本 Part 故意只要求 "最简可行" 的策略:
+    //       整个文件系统一把锁串行化。更精细的方案放到 README 讨论。
+    //
+    // 同: tree 结构、所有操作的语义都跟 Part 2 一样 (单线程下行为应完全一致)
+    // 变: 在 5 个公开方法外面包一层并发保护
+    // 新: 5 个 Part 3 后缀的方法 (wrap Part 2 的同名方法)
     //
     // 你要写的:
-    //   - 一个 lock 实例字段
-    //   - 5 个方法 wrap Part 2：读 (ls / readContentFromFile) 拿 read lock；
-    //     写 (mkdir / addContentToFile / mv) 拿 write lock
+    //   - lsPart3 / mkdirPart3 / addContentToFilePart3 / readContentFromFilePart3 / mvPart3
+    //     —— 单线程语义照搬 Part 2, 只是要保证多线程并发调用时安全。
+    //
+    // 验证 (测试只覆盖单线程一致性, 真正的 race 靠 review):
+    //   mkdir("/a"); addContentToFile("/a/f","x"); read("/a/f")="x"
+    //   mv("/a/f","/a/g"); read("/a/g")="x"; ls("/a")=["g"]
     //
     // 这是"简单情形"——day-1 上线版本。复杂情形（per-node 锁、mv 跨子树
     // 死锁、copy-on-write、lock-free read）只在 README 讨论，不在代码里展开。
