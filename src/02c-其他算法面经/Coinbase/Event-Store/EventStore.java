@@ -12,14 +12,38 @@ import java.util.*;
  *   query(userId, start, end) → List<Event>   — [start, end] 内该 user 的所有事件
  *   count(userId, start, end) → int           — [start, end] 内该 user 的事件总数
  */
+
+
+# Core Assumptions and Requirements:
+* Events are mostly time ordered. 
+    * Note this indicating an ArrayList rather than TreeMap. 
+* Each timestamp could have more than one events
+    * No need to sort further
+* 
+
+# Other:
+* Concurrency
+    * What to discuss about the concurrency 
+    * 
+
+
+Data Structure:
+* Partition Data by UserID. Use a HashMap, key is UserId, value is Per User level EventStore
+* EventStore
+
 public class EventStore {
 
-    public record Event(String userId, long timestamp, String payload) {}
+    static record Event(String userId, long timestamp, String payload) {}
+    static class UserEvents {
+
+    }
+
 
     // ====================================================================
     // TODO: 选择 per-user 数据结构并实现以下方法
     // ====================================================================
 
+    
     public EventStore() {
         throw new UnsupportedOperationException("TODO: constructor");
     }
