@@ -203,3 +203,43 @@ class Solution {
     }
 }
 ```
+
+
+## 2026
+
+优先队列（min-heap）解法。把每条链表的头节点入堆，每次弹出最小节点接到结果链表后，再把它的 next 入堆。
+时间 O(N log k)，空间 O(k)。这个解法在 2025 年的 Meta 电面遇到过一次。
+
+```java
+/**
+ * Definition for singly-linked list.
+ * public class ListNode {
+ *     int val;
+ *     ListNode next;
+ *     ListNode() {}
+ *     ListNode(int val) { this.val = val; }
+ *     ListNode(int val, ListNode next) { this.val = val; this.next = next; }
+ * }
+ */
+class Solution {
+    public ListNode mergeKLists(ListNode[] lists) {
+        ListNode dummyHead = new ListNode();
+        ListNode p = dummyHead;
+        PriorityQueue<ListNode> pq = new PriorityQueue<>((a, b) -> a.val - b.val);
+        for (ListNode list : lists) {
+            if (list == null) continue;
+            pq.offer(list);
+        }
+        while (!pq.isEmpty()) {
+            ListNode list = pq.poll();
+            p.next = list;
+            p = p.next;
+            list = list.next;
+            if (list != null) {
+                pq.offer(list);
+            }
+        }
+        return dummyHead.next;
+    }
+}
+```
